@@ -30,14 +30,14 @@
 package http
 
 import (
-	"fmt"
-	"net/http"
 	"encoding/json"
+	"fmt"
 	ologger "github.com/ossrs/go-oryx-lib/logger"
+	"net/http"
 )
 
 // header["Content-Type"] in response.
-const HttpJson         = "application/json"
+const HttpJson = "application/json"
 
 // header["Server"] in response.
 var Server = "Oryx"
@@ -52,11 +52,11 @@ func (v SystemError) Error() string {
 // http standard error response.
 func Error(ctx ologger.Context, err error) http.Handler {
 	// for int error, use code instead.
-	if v,ok := err.(SystemError); ok {
-		return Data(ctx, map[string]int{ "code":int(v), })
+	if v, ok := err.(SystemError); ok {
+		return Data(ctx, map[string]int{"code": int(v)})
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", HttpJson)
 		w.Header().Set("Server", Server)
 
@@ -70,7 +70,7 @@ func Error(ctx ologger.Context, err error) http.Handler {
 func Data(ctx ologger.Context, v interface{}) http.Handler {
 	var err error
 	var b []byte
-	if b,err = json.Marshal(v); err != nil {
+	if b, err = json.Marshal(v); err != nil {
 		return Error(ctx, err)
 	}
 
@@ -80,4 +80,3 @@ func Data(ctx ologger.Context, v interface{}) http.Handler {
 		w.Write(b)
 	})
 }
-
