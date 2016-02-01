@@ -25,16 +25,16 @@ package logger
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
-	"io/ioutil"
 )
 
 // default level for logger.
 const (
-	logInfoLabel = "[info] "
+	logInfoLabel  = "[info] "
 	logTraceLabel = "[trace] "
-	logWarnLabel = "[warn] "
+	logWarnLabel  = "[warn] "
 	logErrorLabel = "[error] "
 )
 

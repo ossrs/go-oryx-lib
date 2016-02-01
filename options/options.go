@@ -28,9 +28,9 @@
 package options
 
 import (
-	"os"
 	"flag"
 	"fmt"
+	"os"
 )
 
 // parse the argv with config, version and signature.
@@ -95,4 +95,3 @@ func ParseArgv(rcf, version, signature string) (confFile string) {
 
 	return
 }
-

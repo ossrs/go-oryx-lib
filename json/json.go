@@ -27,11 +27,11 @@
 package json
 
 import (
-	"encoding/json"
-	"io"
-	"bytes"
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 )
 
 // user can directly use this to UnMarshal a json stream.
@@ -159,4 +159,3 @@ func firstMatch(data []byte, flags [][]byte) (pos, index int) {
 
 	return
 }
-
