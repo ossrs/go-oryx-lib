@@ -1,0 +1,83 @@
+// The MIT License (MIT)
+//
+// Copyright (c) 2013-2016 Oryx(ossrs)
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// The oryx http package provides standard request and response in json.
+//			Error, when error, use this handler.
+//			Data, when no error, use this handler.
+//			SystemError, application level error code.
+// The standard server response:
+//			code, an int error code.
+//			data, specifies the data.
+// The global variable Server is the header["Server"].
+package http
+
+import (
+	"fmt"
+	"net/http"
+	"encoding/json"
+	ologger "github.com/ossrs/go-oryx-lib/logger"
+)
+
+// header["Content-Type"] in response.
+const HttpJson         = "application/json"
+
+// header["Server"] in response.
+var Server = "Oryx"
+
+// system int error.
+type SystemError int
+
+func (v SystemError) Error() string {
+	return fmt.Sprintf("Licenser error=%d", int(v))
+}
+
+// http standard error response.
+func Error(ctx ologger.Context, err error) http.Handler {
+	// for int error, use code instead.
+	if v,ok := err.(SystemError); ok {
+		return Data(ctx, map[string]int{ "code":int(v), })
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		w.Header().Set("Content-Type", HttpJson)
+		w.Header().Set("Server", Server)
+
+		// unknown error, log and response detail
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
+	})
+}
+
+// http normal response.
+func Data(ctx ologger.Context, v interface{}) http.Handler {
+	var err error
+	var b []byte
+	if b,err = json.Marshal(v); err != nil {
+		return Error(ctx, err)
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", HttpJson)
+		w.Header().Set("Server", Server)
+		w.Write(b)
+	})
+}
+
