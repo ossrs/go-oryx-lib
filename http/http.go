@@ -68,9 +68,20 @@ func Error(ctx ologger.Context, err error) http.Handler {
 
 // http normal response.
 func Data(ctx ologger.Context, v interface{}) http.Handler {
+	rv := map[string]interface{}{
+		"code": 0,
+		"data": v,
+	}
+
+	// for string, directly use it without convert,
+	// for the type covert by golang maybe modify the content.
+	if v, ok := v.(string); ok {
+		rv["data"] = v
+	}
+
 	var err error
 	var b []byte
-	if b, err = json.Marshal(v); err != nil {
+	if b, err = json.Marshal(rv); err != nil {
 		return Error(ctx, err)
 	}
 
