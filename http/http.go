@@ -57,8 +57,8 @@ func Error(ctx ologger.Context, err error) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		SetHeader(w)
 		w.Header().Set("Content-Type", HttpJson)
-		w.Header().Set("Server", Server)
 
 		// unknown error, log and response detail
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,8 +86,13 @@ func Data(ctx ologger.Context, v interface{}) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		SetHeader(w)
 		w.Header().Set("Content-Type", HttpJson)
-		w.Header().Set("Server", Server)
 		w.Write(b)
 	})
+}
+
+// set http header.
+func SetHeader(w http.ResponseWriter) {
+	w.Header().Set("Server", Server)
 }
