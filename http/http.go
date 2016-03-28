@@ -53,7 +53,7 @@ func (v SystemError) Error() string {
 func Error(ctx ologger.Context, err error) http.Handler {
 	// for int error, use code instead.
 	if v, ok := err.(SystemError); ok {
-		return Data(ctx, map[string]int{"code": int(v)})
+		return jsonHandler(ctx, map[string]int{"code": int(v)})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +79,16 @@ func Data(ctx ologger.Context, v interface{}) http.Handler {
 		rv["data"] = v
 	}
 
+	return jsonHandler(ctx, rv)
+}
+
+// set http header.
+func SetHeader(w http.ResponseWriter) {
+	w.Header().Set("Server", Server)
+}
+
+// response json directly.
+func jsonHandler(ctx ologger.Context, rv interface{}) http.Handler {
 	var err error
 	var b []byte
 	if b, err = json.Marshal(rv); err != nil {
@@ -90,9 +100,4 @@ func Data(ctx ologger.Context, v interface{}) http.Handler {
 		w.Header().Set("Content-Type", HttpJson)
 		w.Write(b)
 	})
-}
-
-// set http header.
-func SetHeader(w http.ResponseWriter) {
-	w.Header().Set("Server", Server)
 }
