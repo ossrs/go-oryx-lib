@@ -98,6 +98,12 @@ func jsonHandler(ctx ologger.Context, rv interface{}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		SetHeader(w)
 		w.Header().Set("Content-Type", HttpJson)
-		w.Write(b)
+
+		q := r.URL.Query()
+		if cb := q.Get("callback"); cb != "" {
+			fmt.Fprintf(w, "%s(%s)", cb, string(b))
+		} else {
+			w.Write(b)
+		}
 	})
 }
