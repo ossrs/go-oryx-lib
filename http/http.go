@@ -37,7 +37,11 @@ import (
 )
 
 // header["Content-Type"] in response.
-const HttpJson = "application/json"
+const (
+	HttpJson = "application/json"
+	HttpJavaScript = "application/javascript"
+)
+
 
 // header["Server"] in response.
 var Server = "Oryx"
@@ -97,7 +101,14 @@ func jsonHandler(ctx ologger.Context, rv interface{}) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		SetHeader(w)
-		w.Header().Set("Content-Type", HttpJson)
-		w.Write(b)
+
+		q := r.URL.Query()
+		if cb := q.Get("callback"); cb != "" {
+			w.Header().Set("Content-Type", HttpJavaScript)
+			fmt.Fprintf(w, "%s(%s)", cb, string(b))
+		} else {
+			w.Header().Set("Content-Type", HttpJson)
+			w.Write(b)
+		}
 	})
 }
