@@ -46,11 +46,31 @@ var Server = "Oryx"
 type SystemError int
 
 func (v SystemError) Error() string {
-	return fmt.Sprintf("Licenser error=%d", int(v))
+	return fmt.Sprintf("System error=%d", int(v))
+}
+
+// system conplex error.
+type SystemComplexError struct {
+	// the system error code.
+	Code SystemError
+	// the description for this error.
+	Message string
+}
+
+func (v SystemComplexError) Error() string {
+	return fmt.Sprintf("%v, %v", v.Code.Error(), v.Message)
 }
 
 // http standard error response.
 func Error(ctx ologger.Context, err error) http.Handler {
+	// for complex error, use code instead.
+	if v, ok := err.(SystemComplexError); ok {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
+			jsonHandler(ctx, map[string]int{"code": int(v.Code)}).ServeHTTP(w, r)
+		})
+	}
+
 	// for int error, use code instead.
 	if v, ok := err.(SystemError); ok {
 		return jsonHandler(ctx, map[string]int{"code": int(v)})
