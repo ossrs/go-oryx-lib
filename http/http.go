@@ -71,7 +71,7 @@ func Error(ctx ologger.Context, err error) http.Handler {
 	if v, ok := err.(SystemComplexError); ok {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
-			jsonHandler(ctx, map[string]int{"code": int(v.Code)}).ServeHTTP(w, r)
+			jsonHandler(ctx, map[string]interface{}{"code": v.Code, "data": v.Message}).ServeHTTP(w, r)
 		})
 	}
 
