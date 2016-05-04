@@ -56,9 +56,9 @@ func (v SystemError) Error() string {
 // system conplex error.
 type SystemComplexError struct {
 	// the system error code.
-	Code SystemError
+	Code SystemError `json:"code"`
 	// the description for this error.
-	Message string
+	Message string `json:"data"`
 }
 
 func (v SystemComplexError) Error() string {
@@ -71,7 +71,7 @@ func Error(ctx ologger.Context, err error) http.Handler {
 	if v, ok := err.(SystemComplexError); ok {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
-			jsonHandler(ctx, map[string]interface{}{"code": v.Code, "data": v.Message}).ServeHTTP(w, r)
+			jsonHandler(ctx, v).ServeHTTP(w, r)
 		})
 	}
 
