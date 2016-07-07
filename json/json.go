@@ -23,7 +23,7 @@
 // User can use the following APIs:
 //		Unmarshal, directly unmarshal a Reader to object, like json.Unmarshal
 //		NewJsonPlusReader, convert the Reader to data stream without comments.
-//		NewCommentReader, specified the customed comment.
+//		NewCommentReader, specified the special comment or tags.
 package json
 
 import (
@@ -63,7 +63,7 @@ func NewJsonPlusReader(r io.Reader) io.Reader {
 // error when comment not match.
 var commentNotMatch = errors.New("comment not match")
 
-// the comment reader to ignore.
+// the reader to ignore specified comments or tags.
 func NewCommentReader(r io.Reader, startMatches, endMatches [][]byte, isComments, requiredMatches []bool) io.Reader {
 	v := &commentReader{
 		s: bufio.NewScanner(r),

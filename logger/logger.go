@@ -20,7 +20,11 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // The oryx logger package provides connection-oriented log service.
-//		Logger.Println(Context, ...), the context is the connection info, can be nil.
+//		logger.Info.Println(Context, ...)
+//		logger.Trace.Println(Context, ...)
+//		logger.Warn.Println(Context, ...)
+//		logger.Error.Println(Context, ...)
+// @remark the Context is optional thus can be nil.
 package logger
 
 import (
