@@ -91,6 +91,11 @@ func Error(ctx ol.Context, err error) http.Handler {
 	})
 }
 
+// Wrapper for complex error use Error(ctx, SystemComplexError{})
+func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
+	return Error(ctx, SystemComplexError{code,message})
+}
+
 // http normal response.
 func Data(ctx ol.Context, v interface{}) http.Handler {
 	rv := map[string]interface{}{
