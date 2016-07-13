@@ -76,7 +76,7 @@ func (v *aspContext) InstallSignals() {
 			os.Exit(0)
 		}
 	}()
-	ol.T(v.ctx, "signal watched")
+	ol.T(v.ctx, "signal watched by asprocess")
 }
 
 func (v *aspContext) WatchParent() {
