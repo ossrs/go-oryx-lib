@@ -22,10 +22,10 @@
 package json_test
 
 import (
-	ojson "github.com/ossrs/go-oryx-lib/json"
 	"bytes"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	oj "github.com/ossrs/go-oryx-lib/json"
 	"io/ioutil"
 )
 
@@ -38,12 +38,12 @@ func ExampleJson() {
 	}
 	`))
 
-	j := json.NewDecoder(ojson.NewJsonPlusReader(r))
+	j := json.NewDecoder(oj.NewJsonPlusReader(r))
 
-	obj := struct{
-		Code int `json:"code"`
-		Data string `json:"data"`
-		JsonPlus bool `json:"json+"`
+	obj := struct {
+		Code     int    `json:"code"`
+		Data     string `json:"data"`
+		JsonPlus bool   `json:"json+"`
 	}{}
 	if err := j.Decode(&obj); err != nil {
 		fmt.Println("json+ decode failed, err is", err)
@@ -65,16 +65,15 @@ func ExampleJson() {
 func ExampleJson_Unmarshal() {
 	s := `{"code":100,"data":"There is something error"}`
 	var obj interface{}
-	if err := ojson.Unmarshal(bytes.NewBuffer([]byte(s)), &obj); err != nil {
+	if err := oj.Unmarshal(bytes.NewBuffer([]byte(s)), &obj); err != nil {
 		fmt.Println("json+ unmarshal failed, err is", err)
 		return
 	}
 
-	if obj,ok := obj.(map[string]interface{}); ok {
+	if obj, ok := obj.(map[string]interface{}); ok {
 		fmt.Println("Code:", obj["code"])
 		fmt.Println("Data:", obj["data"])
 	}
-
 
 	// Output:
 	// Code: 100
@@ -94,13 +93,13 @@ func ExampleJson_NewCommentReader() {
 vhost __defaultVhost__ {
 }
 	`))
-	cr := ojson.NewCommentReader(r,
+	cr := oj.NewCommentReader(r,
 		[][]byte{[]byte("'"), []byte("\""), []byte("#")},
 		[][]byte{[]byte("'"), []byte("\""), []byte("\n")},
 		[]bool{false, false, true},
 		[]bool{true, true, false},
 	)
-	if o,err := ioutil.ReadAll(cr); err != nil {
+	if o, err := ioutil.ReadAll(cr); err != nil {
 		fmt.Println("json+ read without comments failed, err is", err)
 		return
 	} else {

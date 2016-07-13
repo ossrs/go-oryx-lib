@@ -21,25 +21,26 @@
 
 package logger_test
 
-import "github.com/ossrs/go-oryx-lib/logger"
+import ol "github.com/ossrs/go-oryx-lib/logger"
 
 func ExampleLogger() {
-	logger.Info.Println(nil, "The log text.")
-	logger.Trace.Println(nil, "The log text.")
-	logger.Warn.Println(nil, "The log text.")
-	logger.Error.Println(nil, "The log text.")
+	ol.Info.Println(nil, "The log text.")
+	ol.Trace.Println(nil, "The log text.")
+	ol.Warn.Println(nil, "The log text.")
+	ol.Error.Println(nil, "The log text.")
 }
 
 // Each context is specified a connection.
 type context int
+
 func (v context) Cid() int {
 	return int(v)
 }
 
 func ExampleLogger_ConnectionBased() {
 	ctx := context(100)
-	logger.Info.Println(ctx, "The log text")
-	logger.Trace.Println(ctx, "The log text.")
-	logger.Warn.Println(ctx, "The log text.")
-	logger.Error.Println(ctx, "The log text.")
+	ol.Info.Println(ctx, "The log text")
+	ol.Trace.Println(ctx, "The log text.")
+	ol.Warn.Println(ctx, "The log text.")
+	ol.Error.Println(ctx, "The log text.")
 }

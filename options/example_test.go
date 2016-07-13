@@ -22,9 +22,9 @@
 package options_test
 
 import (
-	"github.com/ossrs/go-oryx-lib/options"
-	"os"
 	"fmt"
+	oo "github.com/ossrs/go-oryx-lib/options"
+	"os"
 )
 
 func ExampleOptions() {
@@ -33,10 +33,10 @@ func ExampleOptions() {
 	// Parse url from argv:
 	//		./binary -c url
 	//		./binary -c conf/oryx.json
-	url := options.ParseArgv("conf/console.json", "1.0", "oryx")
+	url := oo.ParseArgv("conf/console.json", "1.0", "oryx")
 
 	var f *os.File
-	if f,err = os.Open(url); err != nil {
+	if f, err = os.Open(url); err != nil {
 		fmt.Println("Open config file failed, err is", err)
 		return
 	}

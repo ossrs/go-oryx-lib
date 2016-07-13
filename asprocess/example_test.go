@@ -21,14 +21,14 @@
 
 package asprocess_test
 
-import "github.com/ossrs/go-oryx-lib/asprocess"
+import oa "github.com/ossrs/go-oryx-lib/asprocess"
 
 func ExampleAsProcess() {
 	// Without context and callback.
-	asprocess.Watch(nil, asprocess.CheckParentInterval, nil)
+	oa.Watch(nil, oa.CheckParentInterval, nil)
 
 	// Without context, use callback to cleanup.
-	asprocess.Watch(nil, asprocess.CheckParentInterval, asprocess.Cleanup(func(){
+	oa.Watch(nil, oa.CheckParentInterval, oa.Cleanup(func() {
 		// Do cleanup when quit.
 	}))
 }

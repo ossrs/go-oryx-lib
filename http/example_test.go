@@ -22,23 +22,23 @@
 package http_test
 
 import (
-	ohttp "github.com/ossrs/go-oryx-lib/http"
 	"fmt"
+	oh "github.com/ossrs/go-oryx-lib/http"
 	"net/http"
 )
 
 func ExampleHttpTest_Global() {
-	ohttp.Server = "Test"
-	fmt.Println("Server:", ohttp.Server)
+	oh.Server = "Test"
+	fmt.Println("Server:", oh.Server)
 
 	// Output:
 	// Server: Test
 }
 
 func ExampleHttpTest_RawResponse() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Set the common response header when need to write RAW message.
-		ohttp.SetHeader(w)
+		oh.SetHeader(w)
 
 		// Write RAW message only, or should use the Error() or Data() functions.
 		w.Write([]byte("Hello, World!"))
@@ -46,28 +46,28 @@ func ExampleHttpTest_RawResponse() {
 }
 
 func ExampleHttpTest_JsonData() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Response data which can be marshal to json.
-		ohttp.Data(nil, map[string]interface{}{
+		oh.Data(nil, map[string]interface{}{
 			"version": "1.0",
-			"count": 100,
+			"count":   100,
 		}).ServeHTTP(w, r)
 	})
 }
 
 func ExampleHttpTest_Error() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Response unknown error with HTTP/500
-		ohttp.Error(nil, fmt.Errorf("System error")).ServeHTTP(w, r)
+		oh.Error(nil, fmt.Errorf("System error")).ServeHTTP(w, r)
 	})
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Response known error {code:xx}
-		ohttp.Error(nil, ohttp.SystemError(100)).ServeHTTP(w, r)
+		oh.Error(nil, oh.SystemError(100)).ServeHTTP(w, r)
 	})
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Response known complex error {code:xx,data:"xxx"}
-		ohttp.Error(nil, ohttp.SystemComplexError{ohttp.SystemError(100), "Error description"}).ServeHTTP(w, r)
+		oh.Error(nil, oh.SystemComplexError{oh.SystemError(100), "Error description"}).ServeHTTP(w, r)
 	})
 }

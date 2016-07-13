@@ -66,20 +66,39 @@ func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 	v.logger.Println(a...)
 }
 
-// the application loggers
-// info, the verbose info level, very detail log, the lowest level, to discard.
+// Info, the verbose info level, very detail log, the lowest level, to discard.
 var Info Logger = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
 
-// trace, the trace level, something important, the default log level, to stdout.
+// Alias for Info level println.
+func I(ctx Context, a ...interface{}) {
+	Info.Println(ctx, a...)
+}
+
+// Trace, the trace level, something important, the default log level, to stdout.
 var Trace Logger = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.LstdFlags))
 
-// warn, the warning level, dangerous information, to stderr.
+// Alias for Trace level println.
+func T(ctx Context, a ...interface{}) {
+	Trace.Println(ctx, a...)
+}
+
+// Warn, the warning level, dangerous information, to stderr.
 var Warn Logger = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.LstdFlags))
 
-// error, the error level, fatal error things, ot stderr.
+// Alias for Warn level println.
+func W(ctx Context, a ...interface{}) {
+	Warn.Println(ctx, a...)
+}
+
+// Error, the error level, fatal error things, ot stderr.
 var Error Logger = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.LstdFlags))
 
-// the logger for gsrs.
+// Alias for Error level println.
+func E(ctx Context, a ...interface{}) {
+	Error.Println(ctx, a...)
+}
+
+// The logger for oryx.
 type Logger interface {
 	// Println for logger plus,
 	// @param ctx the connection-oriented context, or nil to ignore.

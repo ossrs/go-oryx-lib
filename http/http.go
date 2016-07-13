@@ -38,10 +38,9 @@ import (
 
 // header["Content-Type"] in response.
 const (
-	HttpJson = "application/json"
+	HttpJson       = "application/json"
 	HttpJavaScript = "application/javascript"
 )
-
 
 // header["Server"] in response.
 var Server = "Oryx"

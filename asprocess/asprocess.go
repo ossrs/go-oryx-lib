@@ -25,11 +25,11 @@
 package asprocess
 
 import (
-	"time"
 	ocore "github.com/ossrs/go-oryx-lib/logger"
+	"os"
 	"os/signal"
 	"syscall"
-	"os"
+	"time"
 )
 
 // The recomment interval to check the parent pid.
@@ -44,7 +44,7 @@ type Cleanup func()
 // @remark optional callback cleanup callback function. nil to ignore.
 func Watch(ctx ocore.Context, interval time.Duration, callback Cleanup) {
 	v := &aspContext{
-		ctx: ctx,
+		ctx:      ctx,
 		interval: interval,
 		callback: callback,
 	}
@@ -55,7 +55,7 @@ func Watch(ctx ocore.Context, interval time.Duration, callback Cleanup) {
 }
 
 type aspContext struct {
-	ctx ocore.Context
+	ctx      ocore.Context
 	interval time.Duration
 	callback Cleanup
 }
