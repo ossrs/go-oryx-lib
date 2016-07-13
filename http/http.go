@@ -32,15 +32,16 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	ologger "github.com/ossrs/go-oryx-lib/logger"
+	ol "github.com/ossrs/go-oryx-lib/logger"
 	"net/http"
 )
 
 // header["Content-Type"] in response.
 const (
-	HttpJson       = "application/json"
+	HttpJson = "application/json"
 	HttpJavaScript = "application/javascript"
 )
+
 
 // header["Server"] in response.
 var Server = "Oryx"
@@ -65,11 +66,12 @@ func (v SystemComplexError) Error() string {
 }
 
 // http standard error response.
-func Error(ctx ologger.Context, err error) http.Handler {
+// @remark for not SystemError, we will use logger.E to print it.
+func Error(ctx ol.Context, err error) http.Handler {
 	// for complex error, use code instead.
 	if v, ok := err.(SystemComplexError); ok {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
+			ol.E(ctx, "Serve", r.URL, "failed. err is", err.Error())
 			jsonHandler(ctx, v).ServeHTTP(w, r)
 		})
 	}
@@ -85,12 +87,12 @@ func Error(ctx ologger.Context, err error) http.Handler {
 
 		// unknown error, log and response detail
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		ologger.Error.Println(ctx, "Serve", r.URL, "failed. err is", err.Error())
+		ol.E(ctx, "Serve", r.URL, "failed. err is", err.Error())
 	})
 }
 
 // http normal response.
-func Data(ctx ologger.Context, v interface{}) http.Handler {
+func Data(ctx ol.Context, v interface{}) http.Handler {
 	rv := map[string]interface{}{
 		"code": 0,
 		"data": v,
@@ -111,7 +113,7 @@ func SetHeader(w http.ResponseWriter) {
 }
 
 // response json directly.
-func jsonHandler(ctx ologger.Context, rv interface{}) http.Handler {
+func jsonHandler(ctx ol.Context, rv interface{}) http.Handler {
 	var err error
 	var b []byte
 	if b, err = json.Marshal(rv); err != nil {

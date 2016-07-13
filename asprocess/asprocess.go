@@ -25,11 +25,11 @@
 package asprocess
 
 import (
-	ocore "github.com/ossrs/go-oryx-lib/logger"
-	"os"
+	"time"
+	ol "github.com/ossrs/go-oryx-lib/logger"
 	"os/signal"
 	"syscall"
-	"time"
+	"os"
 )
 
 // The recomment interval to check the parent pid.
@@ -42,9 +42,9 @@ type Cleanup func()
 // @remark optional ctx the logger context. nil to ignore.
 // @reamrk check interval, user can use const CheckParentInterval
 // @remark optional callback cleanup callback function. nil to ignore.
-func Watch(ctx ocore.Context, interval time.Duration, callback Cleanup) {
+func Watch(ctx ol.Context, interval time.Duration, callback Cleanup) {
 	v := &aspContext{
-		ctx:      ctx,
+		ctx: ctx,
 		interval: interval,
 		callback: callback,
 	}
@@ -55,7 +55,7 @@ func Watch(ctx ocore.Context, interval time.Duration, callback Cleanup) {
 }
 
 type aspContext struct {
-	ctx      ocore.Context
+	ctx ol.Context
 	interval time.Duration
 	callback Cleanup
 }
@@ -67,7 +67,7 @@ func (v *aspContext) InstallSignals() {
 
 	go func() {
 		for s := range sigs {
-			ocore.Trace.Println(v.ctx, "go signal", s)
+			ol.T(v.ctx, "go signal", s)
 
 			if v.callback != nil {
 				v.callback()
@@ -76,7 +76,7 @@ func (v *aspContext) InstallSignals() {
 			os.Exit(0)
 		}
 	}()
-	ocore.Trace.Println(v.ctx, "signal watched")
+	ol.T(v.ctx, "signal watched")
 }
 
 func (v *aspContext) WatchParent() {
@@ -85,7 +85,7 @@ func (v *aspContext) WatchParent() {
 	go func() {
 		for {
 			if pid := os.Getppid(); pid == 1 || pid != ppid {
-				ocore.Error.Println(v.ctx, "quit for parent problem, ppid is", pid)
+				ol.E(v.ctx, "quit for parent problem, ppid is", pid)
 
 				if v.callback != nil {
 					v.callback()
@@ -93,10 +93,10 @@ func (v *aspContext) WatchParent() {
 
 				os.Exit(0)
 			}
-			//ocore.Trace.Println(v.ctx, "parent pid", ppid, "ok")
+			//ol.T(v.ctx, "parent pid", ppid, "ok")
 
 			time.Sleep(v.interval)
 		}
 	}()
-	ocore.Trace.Println(v.ctx, "parent process watching, ppid is", ppid)
+	ol.T(v.ctx, "parent process watching, ppid is", ppid)
 }
