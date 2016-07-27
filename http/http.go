@@ -96,6 +96,7 @@ func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
 }
 
 // http normal response.
+// @remark user can use nil v to response success, which data is null.
 func Data(ctx ol.Context, v interface{}) http.Handler {
 	rv := map[string]interface{}{
 		"code": 0,
