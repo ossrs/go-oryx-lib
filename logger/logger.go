@@ -29,6 +29,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -103,4 +104,34 @@ type Logger interface {
 	// Println for logger plus,
 	// @param ctx the connection-oriented context, or nil to ignore.
 	Println(ctx Context, a ...interface{})
+}
+
+// Switch the underlayer io.
+// @remark user must close previous io for logger never close it.
+func Switch(w io.Writer) {
+	// TODO: support level, default to trace here.
+	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
+	Trace = NewLoggerPlus(log.New(w, logTraceLabel, log.LstdFlags))
+	Warn = NewLoggerPlus(log.New(w, logWarnLabel, log.LstdFlags))
+	Error = NewLoggerPlus(log.New(w, logErrorLabel, log.LstdFlags))
+
+	if w, ok := w.(io.Closer); ok {
+		previousIo = w
+	}
+}
+
+// The previous underlayer io for logger.
+var previousIo io.Closer
+
+// Cleanup the logger, discard any log util switch to fresh writer.
+func Close() {
+	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
+	Trace = NewLoggerPlus(log.New(ioutil.Discard, logTraceLabel, log.LstdFlags))
+	Warn = NewLoggerPlus(log.New(ioutil.Discard, logWarnLabel, log.LstdFlags))
+	Error = NewLoggerPlus(log.New(ioutil.Discard, logErrorLabel, log.LstdFlags))
+
+	if previousIo != nil {
+		previousIo.Close()
+		previousIo = nil
+	}
 }

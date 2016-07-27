@@ -21,13 +21,38 @@
 
 package logger_test
 
-import ol "github.com/ossrs/go-oryx-lib/logger"
+import (
+	ol "github.com/ossrs/go-oryx-lib/logger"
+	"os"
+)
 
 func ExampleLogger() {
 	ol.Info.Println(nil, "The log text.")
 	ol.Trace.Println(nil, "The log text.")
 	ol.Warn.Println(nil, "The log text.")
 	ol.Error.Println(nil, "The log text.")
+}
+
+func ExampleLogger_Switch() {
+	var err error
+	var f *os.File
+	if f, err = os.Open("sys.log"); err != nil {
+		return
+	}
+	ol.Switch(f)
+
+	// User must close current log file.
+	ol.Close()
+	// User can move the sys.log away.
+	// Then reopen the log file and notify logger to use it.
+	if f, err = os.Open("sys.log"); err != nil {
+		return
+	}
+	// All logs between close and switch are dropped.
+	ol.Switch(f)
+
+	// Always close it.
+	defer ol.Close()
 }
 
 // Each context is specified a connection.

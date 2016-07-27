@@ -38,10 +38,9 @@ import (
 
 // header["Content-Type"] in response.
 const (
-	HttpJson = "application/json"
+	HttpJson       = "application/json"
 	HttpJavaScript = "application/javascript"
 )
-
 
 // header["Server"] in response.
 var Server = "Oryx"
@@ -93,7 +92,7 @@ func Error(ctx ol.Context, err error) http.Handler {
 
 // Wrapper for complex error use Error(ctx, SystemComplexError{})
 func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
-	return Error(ctx, SystemComplexError{code,message})
+	return Error(ctx, SystemComplexError{code, message})
 }
 
 // http normal response.
