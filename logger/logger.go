@@ -123,15 +123,18 @@ func Switch(w io.Writer) {
 // The previous underlayer io for logger.
 var previousIo io.Closer
 
+// The interface io.Closer
 // Cleanup the logger, discard any log util switch to fresh writer.
-func Close() {
+func Close() (err error) {
 	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
 	Trace = NewLoggerPlus(log.New(ioutil.Discard, logTraceLabel, log.LstdFlags))
 	Warn = NewLoggerPlus(log.New(ioutil.Discard, logWarnLabel, log.LstdFlags))
 	Error = NewLoggerPlus(log.New(ioutil.Discard, logErrorLabel, log.LstdFlags))
 
 	if previousIo != nil {
-		previousIo.Close()
+		err = previousIo.Close()
 		previousIo = nil
 	}
+
+	return
 }
