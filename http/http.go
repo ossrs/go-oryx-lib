@@ -35,8 +35,8 @@ import (
 	ol "github.com/ossrs/go-oryx-lib/logger"
 	"net/http"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 // header["Content-Type"] in response.
@@ -102,9 +102,9 @@ func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
 // @remark user can use nil v to response success, which data is null.
 func Data(ctx ol.Context, v interface{}) http.Handler {
 	rv := map[string]interface{}{
-		"code": 0,
+		"code":   0,
 		"server": os.Getpid(),
-		"data": v,
+		"data":   v,
 	}
 
 	// for string, directly use it without convert,
@@ -149,30 +149,30 @@ func jsonHandler(ctx ol.Context, rv interface{}) http.Handler {
 // @param version in {major.minor.revision-extra}, where -extra is optional,
 //	for example: 1.0.0 or 1.0.0-0 or 1.0.0-1
 func WriteVersion(w http.ResponseWriter, r *http.Request, version string) {
-	var major,minor,revision,extra int
+	var major, minor, revision, extra int
 
 	versions := strings.Split(version, "-")
 	if len(versions) > 1 {
-		extra,_ = strconv.Atoi(versions[1])
+		extra, _ = strconv.Atoi(versions[1])
 	}
 
 	versions = strings.Split(versions[0], ".")
 	if len(versions) > 0 {
-		major,_ = strconv.Atoi(versions[0])
+		major, _ = strconv.Atoi(versions[0])
 	}
 	if len(versions) > 1 {
-		minor,_ = strconv.Atoi(versions[1])
+		minor, _ = strconv.Atoi(versions[1])
 	}
 	if len(versions) > 2 {
-		revision,_ = strconv.Atoi(versions[2])
+		revision, _ = strconv.Atoi(versions[2])
 	}
 
 	Data(nil, map[string]interface{}{
-		"major": major,
-		"minor": minor,
-		"revision": revision,
-		"extra": extra,
-		"version": version,
+		"major":     major,
+		"minor":     minor,
+		"revision":  revision,
+		"extra":     extra,
+		"version":   version,
 		"signature": Server,
 	}).ServeHTTP(w, r)
 }
