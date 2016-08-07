@@ -68,7 +68,7 @@ func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 }
 
 // Info, the verbose info level, very detail log, the lowest level, to discard.
-var Info Logger = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
+var Info Logger = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 // Alias for Info level println.
 func I(ctx Context, a ...interface{}) {
@@ -76,7 +76,7 @@ func I(ctx Context, a ...interface{}) {
 }
 
 // Trace, the trace level, something important, the default log level, to stdout.
-var Trace Logger = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.LstdFlags))
+var Trace Logger = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 // Alias for Trace level println.
 func T(ctx Context, a ...interface{}) {
@@ -84,7 +84,7 @@ func T(ctx Context, a ...interface{}) {
 }
 
 // Warn, the warning level, dangerous information, to stderr.
-var Warn Logger = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.LstdFlags))
+var Warn Logger = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 // Alias for Warn level println.
 func W(ctx Context, a ...interface{}) {
@@ -92,7 +92,7 @@ func W(ctx Context, a ...interface{}) {
 }
 
 // Error, the error level, fatal error things, ot stderr.
-var Error Logger = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.LstdFlags))
+var Error Logger = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 // Alias for Error level println.
 func E(ctx Context, a ...interface{}) {
@@ -110,10 +110,10 @@ type Logger interface {
 // @remark user must close previous io for logger never close it.
 func Switch(w io.Writer) {
 	// TODO: support level, default to trace here.
-	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
-	Trace = NewLoggerPlus(log.New(w, logTraceLabel, log.LstdFlags))
-	Warn = NewLoggerPlus(log.New(w, logWarnLabel, log.LstdFlags))
-	Error = NewLoggerPlus(log.New(w, logErrorLabel, log.LstdFlags))
+	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Trace = NewLoggerPlus(log.New(w, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Warn = NewLoggerPlus(log.New(w, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Error = NewLoggerPlus(log.New(w, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 	if w, ok := w.(io.Closer); ok {
 		previousIo = w
@@ -126,10 +126,10 @@ var previousIo io.Closer
 // The interface io.Closer
 // Cleanup the logger, discard any log util switch to fresh writer.
 func Close() (err error) {
-	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.LstdFlags))
-	Trace = NewLoggerPlus(log.New(ioutil.Discard, logTraceLabel, log.LstdFlags))
-	Warn = NewLoggerPlus(log.New(ioutil.Discard, logWarnLabel, log.LstdFlags))
-	Error = NewLoggerPlus(log.New(ioutil.Discard, logErrorLabel, log.LstdFlags))
+	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Trace = NewLoggerPlus(log.New(ioutil.Discard, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Warn = NewLoggerPlus(log.New(ioutil.Discard, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Error = NewLoggerPlus(log.New(ioutil.Discard, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
 	if previousIo != nil {
 		err = previousIo.Close()
