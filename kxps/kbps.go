@@ -19,7 +19,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// The krps is about the request or message rate.
+// The kbps is about the bitrate.
 package kxps
 
 import (
@@ -27,80 +27,81 @@ import (
 	"io"
 )
 
-// The source to stat the requests.
-type KrpsSource interface {
-	// Get total number of requests.
-	NbRequests() uint64
+// The source to stat the bitrate.
+type KbpsSource interface {
+	// Get total number of bytes.
+	TotalBytes() uint64
 }
 
-// The object to calc the krps.
-type Krps interface {
-	// Start the krps sample goroutine.
+// The object to calc the kbps.
+type Kbps interface {
+	// Start the kbps sample goroutine.
 	Start() (err error)
 
-	// Get the rps in last 10s.
-	Rps10s() float64
-	// Get the rps in last 30s.
-	Rps30s() float64
-	// Get the rps in last 300s.
-	Rps300s() float64
-	// Get the rps in average
+	// Get the kbps in last 10s.
+	Kbps10s() float64
+	// Get the kbps in last 30s.
+	Kbps30s() float64
+	// Get the kbps in last 300s.
+	Kbps300s() float64
+	// Get the kbps in average
 	Average() float64
 
-	// When closed, this krps should never use again.
+	// When closed, this kbps should never use again.
 	io.Closer
 }
 
-// The implementation object.
-type krps struct {
-	source KrpsSource
+type kbps struct {
+	source KbpsSource
 	imp    *kxps
 }
 
-func NewKrps(ctx ol.Context, s KrpsSource) Krps {
-	v := &krps{
-		source: s,
-	}
+func NewKbps(ctx ol.Context, source KbpsSource) Kbps {
+	v := &kbps{source: source}
 	v.imp = newKxps(ctx, v)
 	return v
 }
 
-func (v *krps) Count() uint64 {
-	return v.source.NbRequests()
+func (v *kbps) Count() uint64 {
+	return v.source.TotalBytes()
 }
 
-func (v *krps) Close() (err error) {
+func (v *kbps) Close() (err error) {
 	return v.imp.Close()
 }
 
-func (v *krps) Rps10s() float64 {
+func (v *kbps) Kbps10s() float64 {
 	if !v.imp.started {
-		panic("should start krps first.")
+		panic("should start kbps first.")
 	}
-	return v.imp.Xps10s()
+	// Bps to Kbps
+	return v.imp.Xps10s() * 8 / 1000
 }
 
-func (v *krps) Rps30s() float64 {
+func (v *kbps) Kbps30s() float64 {
 	if !v.imp.started {
-		panic("should start krps first.")
+		panic("should start kbps first.")
 	}
-	return v.imp.Xps30s()
+	// Bps to Kbps
+	return v.imp.Xps30s() * 8 / 1000
 }
 
-func (v *krps) Rps300s() float64 {
+func (v *kbps) Kbps300s() float64 {
 	if !v.imp.started {
-		panic("should start krps first.")
+		panic("should start kbps first.")
 	}
-	return v.imp.Xps300s()
+	// Bps to Kbps
+	return v.imp.Xps300s() * 8 / 1000
 }
 
-func (v *krps) Average() float64 {
+func (v *kbps) Average() float64 {
 	if !v.imp.started {
-		panic("should start krps first.")
+		panic("should start kbps first.")
 	}
-	return v.imp.Average()
+	// Bps to Kbps
+	return v.imp.Average() * 8 / 1000
 }
 
-func (v *krps) Start() (err error) {
+func (v *kbps) Start() (err error) {
 	return v.imp.Start()
 }

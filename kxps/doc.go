@@ -19,42 +19,8 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package kxps_test
-
-import (
-	"github.com/ossrs/go-oryx-lib/kxps"
-)
-
-func ExampleKrps() {
-	// user must provides the krps source
-	var source kxps.KrpsSource
-
-	krps := kxps.NewKrps(nil, source)
-	defer krps.Close()
-
-	if err := krps.Start(); err != nil {
-		return
-	}
-
-	_ = krps.Average()
-	_ = krps.Rps10s()
-	_ = krps.Rps30s()
-	_ = krps.Rps300s()
-}
-
-func ExampleKbps() {
-	// user must provides the kbps source
-	var source kxps.KbpsSource
-
-	kbps := kxps.NewKbps(nil, source)
-	defer kbps.Close()
-
-	if err := kbps.Start(); err != nil {
-		return
-	}
-
-	_ = kbps.Average()
-	_ = kbps.Kbps10s()
-	_ = kbps.Kbps30s()
-	_ = kbps.Kbps300s()
-}
+// The oryx kxps package provides some kxps, for example:
+//	N kbps, N k bits per seconds
+//	N krps, N k requests per seconds
+// over some duration for instance 10s, 30s, 5m, average.
+package kxps
