@@ -29,6 +29,8 @@ import (
 	ol "github.com/ossrs/go-oryx-lib/logger"
 	"sync"
 	"time"
+	"io"
+	"fmt"
 )
 
 // The source to stat the requests.
@@ -48,10 +50,11 @@ type Krps interface {
 	// Get the rps in average
 	Average() float64
 
-	// Sample the krps to calc the krps in different duration.
-	Sample()
+	// When closed, this krps should never use again.
+	io.Closer
 }
 
+// sample for krps.
 type sample struct {
 	rps        float64
 	nbRequests uint64
@@ -72,37 +75,34 @@ func (v *sample) sample(now time.Time, nbRequests uint64) bool {
 		return false
 	}
 
-	diff := int(nbRequests - v.nbRequests)
+	diff := int64(nbRequests - v.nbRequests)
+	if diff <= 0 {
+		return false
+	}
+
 	v.nbRequests = nbRequests
-	if v.interval > 0 {
-		v.lastSample = now
-	}
+	v.lastSample = now
 
-	if diff < 0 {
-		return true
-	}
-
-	interval := int(v.interval / time.Second)
-	if interval == 0 {
-		interval = int(now.Sub(v.create) / time.Second)
-	}
-
-	if interval > 0 {
-		v.rps = float64(diff) / float64(interval)
-	}
+	interval := int(v.interval / time.Millisecond)
+	v.rps = float64(diff) * 1000 / float64(interval)
 
 	return true
 }
 
+var krpsClosed = fmt.Errorf("krps closed")
+
+// The implementation object.
 type krps struct {
 	lock        *sync.Mutex
-	initialized bool
 	r10s        sample
 	r30s        sample
 	r300s       sample
-	average     sample
 	source      KrpsSource
 	ctx         ol.Context
+	closed bool
+	// for average
+	average     uint64
+	create	   time.Time
 }
 
 func NewKrps(ctx ol.Context, s KrpsSource) Krps {
@@ -111,10 +111,31 @@ func NewKrps(ctx ol.Context, s KrpsSource) Krps {
 		source: s,
 		ctx:    ctx,
 	}
+
 	v.r10s.interval = time.Duration(10) * time.Second
 	v.r30s.interval = time.Duration(30) * time.Second
 	v.r300s.interval = time.Duration(300) * time.Second
+	v.create = time.Now()
+
+	go func() {
+		if err := v.sample(); err != nil {
+			if err == krpsClosed {
+				return
+			}
+			ol.W(ctx, "krps ignore sample failed, err is", err)
+		}
+		time.Sleep(v.sampleInterval())
+	}()
+
 	return v
+}
+
+func (v *krps) Close() (err error) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	v.closed = true
+	return
 }
 
 func (v *krps) Rps10s() float64 {
@@ -130,10 +151,30 @@ func (v *krps) Rps300s() float64 {
 }
 
 func (v *krps) Average() float64 {
-	return v.average.rps
+	if v.source.NbRequests() == 0 {
+		return 0
+	}
+
+	if v.average == 0 {
+		v.average = v.source.NbRequests()
+		v.create = time.Now()
+		return 0
+	}
+
+	diff := int64(v.source.NbRequests() - v.average)
+	if diff <= 0 {
+		return 0
+	}
+
+	duration := int64(time.Now().Sub(v.create) / time.Millisecond)
+	if duration <= 0 {
+		return 0
+	}
+
+	return float64(diff) * 1000 / float64(duration)
 }
 
-func (v *krps) Sample() {
+func (v *krps) sample() (err error) {
 	ctx := v.ctx
 
 	defer func() {
@@ -145,19 +186,22 @@ func (v *krps) Sample() {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
+	if v.closed {
+		return krpsClosed
+	}
+
 	now := time.Now()
 	nbRequests := v.source.NbRequests()
-
-	if !v.initialized {
-		v.initialized = true
-		v.r10s.initialize(now, nbRequests)
-		v.r30s.initialize(now, nbRequests)
-		v.r300s.initialize(now, nbRequests)
-		v.average.initialize(now, nbRequests)
+	if nbRequests == 0 {
 		return
 	}
 
-	v.average.sample(now, nbRequests)
+	if v.r10s.nbRequests == 0 {
+		v.r10s.initialize(now, nbRequests)
+		v.r30s.initialize(now, nbRequests)
+		v.r300s.initialize(now, nbRequests)
+		return
+	}
 
 	if !v.r10s.sample(now, nbRequests) {
 		return
@@ -172,4 +216,8 @@ func (v *krps) Sample() {
 	}
 
 	return
+}
+
+func (v *krps) sampleInterval() time.Duration {
+	return time.Duration(10) * time.Second
 }
