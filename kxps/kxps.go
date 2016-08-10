@@ -45,6 +45,10 @@ type sample struct {
 	interval time.Duration
 }
 
+func (v *sample) String() string {
+	return fmt.Sprintf("rps=%v, count=%v, interval=%v", v.rps, v.count, v.interval)
+}
+
 func (v *sample) initialize(now time.Time, nbRequests uint64) {
 	v.count = nbRequests
 	v.lastSample = now
@@ -184,13 +188,15 @@ func (v *kxps) Start() (err error) {
 	ctx := v.ctx
 
 	go func() {
-		if err := v.sample(); err != nil {
-			if err == kxpsClosed {
-				return
+		for {
+			if err := v.sample(); err != nil {
+				if err == kxpsClosed {
+					return
+				}
+				ol.W(ctx, "kxps ignore sample failed, err is", err)
 			}
-			ol.W(ctx, "kxps ignore sample failed, err is", err)
+			time.Sleep(time.Duration(10) * time.Second)
 		}
-		time.Sleep(time.Duration(10) * time.Second)
 	}()
 
 	v.started = true
