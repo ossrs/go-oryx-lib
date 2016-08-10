@@ -26,11 +26,11 @@
 package kxps
 
 import (
+	"fmt"
 	ol "github.com/ossrs/go-oryx-lib/logger"
+	"io"
 	"sync"
 	"time"
-	"io"
-	"fmt"
 )
 
 // The source to stat the requests.
@@ -41,6 +41,9 @@ type KrpsSource interface {
 
 // The object to calc the krps.
 type Krps interface {
+	// Start the krps sample goroutine.
+	Start() (err error)
+
 	// Get the rps in last 10s.
 	Rps10s() float64
 	// Get the rps in last 30s.
@@ -76,12 +79,12 @@ func (v *sample) sample(now time.Time, nbRequests uint64) bool {
 	}
 
 	diff := int64(nbRequests - v.nbRequests)
-	if diff <= 0 {
-		return false
-	}
-
 	v.nbRequests = nbRequests
 	v.lastSample = now
+	if diff <= 0 {
+		v.rps = 0
+		return true
+	}
 
 	interval := int(v.interval / time.Millisecond)
 	v.rps = float64(diff) * 1000 / float64(interval)
@@ -93,16 +96,19 @@ var krpsClosed = fmt.Errorf("krps closed")
 
 // The implementation object.
 type krps struct {
-	lock        *sync.Mutex
-	r10s        sample
-	r30s        sample
-	r300s       sample
-	source      KrpsSource
-	ctx         ol.Context
-	closed bool
+	// internal objects.
+	source  KrpsSource
+	ctx     ol.Context
+	closed  bool
+	started bool
+	lock    *sync.Mutex
+	// samples
+	r10s  sample
+	r30s  sample
+	r300s sample
 	// for average
-	average     uint64
-	create	   time.Time
+	average uint64
+	create  time.Time
 }
 
 func NewKrps(ctx ol.Context, s KrpsSource) Krps {
@@ -115,17 +121,6 @@ func NewKrps(ctx ol.Context, s KrpsSource) Krps {
 	v.r10s.interval = time.Duration(10) * time.Second
 	v.r30s.interval = time.Duration(30) * time.Second
 	v.r300s.interval = time.Duration(300) * time.Second
-	v.create = time.Now()
-
-	go func() {
-		if err := v.sample(); err != nil {
-			if err == krpsClosed {
-				return
-			}
-			ol.W(ctx, "krps ignore sample failed, err is", err)
-		}
-		time.Sleep(v.sampleInterval())
-	}()
 
 	return v
 }
@@ -135,29 +130,50 @@ func (v *krps) Close() (err error) {
 	defer v.lock.Unlock()
 
 	v.closed = true
+	v.started = false
 	return
 }
 
 func (v *krps) Rps10s() float64 {
+	if !v.started {
+		panic("should start krps first.")
+	}
+
 	return v.r10s.rps
 }
 
 func (v *krps) Rps30s() float64 {
+	if !v.started {
+		panic("should start krps first.")
+	}
+
 	return v.r30s.rps
 }
 
 func (v *krps) Rps300s() float64 {
+	if !v.started {
+		panic("should start krps first.")
+	}
+
 	return v.r300s.rps
 }
 
 func (v *krps) Average() float64 {
+	if !v.started {
+		panic("should start krps first.")
+	}
+
+	return v.sampleAverage(time.Now())
+}
+
+func (v *krps) sampleAverage(now time.Time) float64 {
 	if v.source.NbRequests() == 0 {
 		return 0
 	}
 
 	if v.average == 0 {
 		v.average = v.source.NbRequests()
-		v.create = time.Now()
+		v.create = now
 		return 0
 	}
 
@@ -166,7 +182,7 @@ func (v *krps) Average() float64 {
 		return 0
 	}
 
-	duration := int64(time.Now().Sub(v.create) / time.Millisecond)
+	duration := int64(now.Sub(v.create) / time.Millisecond)
 	if duration <= 0 {
 		return 0
 	}
@@ -174,23 +190,7 @@ func (v *krps) Average() float64 {
 	return float64(diff) * 1000 / float64(duration)
 }
 
-func (v *krps) sample() (err error) {
-	ctx := v.ctx
-
-	defer func() {
-		if r := recover(); r != nil {
-			ol.W(ctx, "recover kxps from", r)
-		}
-	}()
-
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	if v.closed {
-		return krpsClosed
-	}
-
-	now := time.Now()
+func (v *krps) doSample(now time.Time) (err error) {
 	nbRequests := v.source.NbRequests()
 	if nbRequests == 0 {
 		return
@@ -218,6 +218,39 @@ func (v *krps) sample() (err error) {
 	return
 }
 
-func (v *krps) sampleInterval() time.Duration {
-	return time.Duration(10) * time.Second
+func (v *krps) Start() (err error) {
+	ctx := v.ctx
+
+	go func() {
+		if err := v.sample(); err != nil {
+			if err == krpsClosed {
+				return
+			}
+			ol.W(ctx, "krps ignore sample failed, err is", err)
+		}
+		time.Sleep(time.Duration(10) * time.Second)
+	}()
+
+	v.started = true
+
+	return
+}
+
+func (v *krps) sample() (err error) {
+	ctx := v.ctx
+
+	defer func() {
+		if r := recover(); r != nil {
+			ol.W(ctx, "recover kxps from", r)
+		}
+	}()
+
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	if v.closed {
+		return krpsClosed
+	}
+
+	return v.doSample(time.Now())
 }

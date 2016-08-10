@@ -31,6 +31,10 @@ func ExampleKrps() {
 	krps := kxps.NewKrps(nil, source)
 	defer krps.Close()
 
+	if err := krps.Start(); err != nil {
+		return
+	}
+
 	_ = krps.Average()
 	_ = krps.Rps10s()
 	_ = krps.Rps30s()
