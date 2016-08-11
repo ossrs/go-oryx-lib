@@ -71,3 +71,14 @@ func ExampleHttpTest_Error() {
 		oh.Error(nil, oh.SystemComplexError{oh.SystemError(100), "Error description"}).ServeHTTP(w, r)
 	})
 }
+
+func ExampleApi() {
+	var err error
+	var body []byte
+	if _, body, err = oh.ApiRequest("http://127.0.0.1985/api/v1/versions"); err != nil {
+		return
+	}
+
+	// user can use the body to parse to specified struct.
+	_ = body
+}

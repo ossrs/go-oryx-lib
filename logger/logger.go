@@ -68,7 +68,7 @@ func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 }
 
 // Info, the verbose info level, very detail log, the lowest level, to discard.
-var Info Logger = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+var Info Logger
 
 // Alias for Info level println.
 func I(ctx Context, a ...interface{}) {
@@ -76,7 +76,7 @@ func I(ctx Context, a ...interface{}) {
 }
 
 // Trace, the trace level, something important, the default log level, to stdout.
-var Trace Logger = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+var Trace Logger
 
 // Alias for Trace level println.
 func T(ctx Context, a ...interface{}) {
@@ -84,7 +84,7 @@ func T(ctx Context, a ...interface{}) {
 }
 
 // Warn, the warning level, dangerous information, to stderr.
-var Warn Logger = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+var Warn Logger
 
 // Alias for Warn level println.
 func W(ctx Context, a ...interface{}) {
@@ -92,7 +92,7 @@ func W(ctx Context, a ...interface{}) {
 }
 
 // Error, the error level, fatal error things, ot stderr.
-var Error Logger = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+var Error Logger
 
 // Alias for Error level println.
 func E(ctx Context, a ...interface{}) {
@@ -104,6 +104,13 @@ type Logger interface {
 	// Println for logger plus,
 	// @param ctx the connection-oriented context, or nil to ignore.
 	Println(ctx Context, a ...interface{})
+}
+
+func init() {
+	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Trace = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Warn = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Error = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 }
 
 // Switch the underlayer io.
