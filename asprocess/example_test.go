@@ -32,3 +32,20 @@ func ExampleAsProcess() {
 		// Do cleanup when quit.
 	}))
 }
+
+func ExampleAsProcess_NoQuit() {
+	// User control the quit event.
+	q := make(chan bool, 1)
+	oa.WatchNoExit(nil, oa.CheckParentInterval, q)
+
+	// Quit when parent changed or signals.
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+
+	select {
+	case <-q:
+		// Quit for parent changed.
+	case <-c:
+		// Quit for signal.
+	}
+}

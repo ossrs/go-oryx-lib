@@ -34,11 +34,12 @@ import (
 
 // The recomment interval to check the parent pid.
 const CheckParentInterval = time.Second * 1
+const Interval = CheckParentInterval
 
 // The cleanup function.
 type Cleanup func()
 
-// Watch the parent process, quit when parent quit.
+// Watch the parent process, listen singals, quit when parent quit or signal quit.
 // @remark optional ctx the logger context. nil to ignore.
 // @reamrk check interval, user can use const CheckParentInterval
 // @remark optional callback cleanup callback function. nil to ignore.
@@ -50,6 +51,21 @@ func Watch(ctx ol.Context, interval time.Duration, callback Cleanup) {
 	}
 
 	v.InstallSignals()
+
+	v.WatchParent()
+}
+
+// Watch the parent process only, write to quit when parent changed.
+// This is used for asprocess which need to control the quit workflow and signals.
+// @remark quit should be make(chan bool, 1) to write quit signal, drop when write failed.
+// @reamrk check interval, user can use const CheckParentInterval
+// @remark user should never close the quit, or watcher will panic when write to closed chan.
+func WatchNoExit(ctx ol.Context, interval time.Duration, quit chan<- bool) {
+	v := aspContextNoExit{
+		ctx:      ctx,
+		interval: interval,
+		quit:     quit,
+	}
 
 	v.WatchParent()
 }
@@ -92,6 +108,33 @@ func (v *aspContext) WatchParent() {
 				}
 
 				os.Exit(0)
+			}
+			//ol.T(v.ctx, "parent pid", ppid, "ok")
+
+			time.Sleep(v.interval)
+		}
+	}()
+	ol.T(v.ctx, "parent process watching, ppid is", ppid)
+}
+
+type aspContextNoExit struct {
+	ctx      ol.Context
+	interval time.Duration
+	quit     chan<- bool
+}
+
+func (v *aspContextNoExit) WatchParent() {
+	ppid := os.Getppid()
+
+	go func() {
+		for {
+			if pid := os.Getppid(); pid == 1 || pid != ppid {
+				ol.E(v.ctx, "quit for parent problem, ppid is", pid)
+				select {
+				case v.quit <- true:
+				default:
+				}
+				break
 			}
 			//ol.T(v.ctx, "parent pid", ppid, "ok")
 
