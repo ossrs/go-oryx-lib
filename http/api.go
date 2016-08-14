@@ -35,7 +35,7 @@ func ApiRequest(url string) (code int, body []byte, err error) {
 		return
 	}
 
-	if code, _, err = apiParse(body); err != nil {
+	if code, _, err = apiParse(url, body); err != nil {
 		return
 	}
 
@@ -60,18 +60,18 @@ func apiGet(url string) (body []byte, err error) {
 }
 
 // Parse the standard response {code:int,data:object}.
-func apiParse(body []byte) (code int, data interface{}, err error) {
+func apiParse(url string, body []byte) (code int, data interface{}, err error) {
 	obj := make(map[string]interface{})
 	if err = json.Unmarshal(body, &obj); err != nil {
-		err = fmt.Errorf("api parse failed, body=%v, err is %v", string(body), err)
+		err = fmt.Errorf("api parse failed, url=%v, body=%v, err is %v", url, string(body), err)
 		return
 	}
 
 	if value, ok := obj["code"]; !ok {
-		err = fmt.Errorf("api no code, body=%v", string(body))
+		err = fmt.Errorf("api no code, url=%v, body=%v", url, string(body))
 		return
 	} else if value, ok := value.(float64); !ok {
-		err = fmt.Errorf("api code not number, code=%v, body=%v", value, string(body))
+		err = fmt.Errorf("api code not number, code=%v, url=%v, body=%v", value, url, string(body))
 		return
 	} else {
 		code = int(value)
@@ -79,7 +79,7 @@ func apiParse(body []byte) (code int, data interface{}, err error) {
 
 	data, _ = obj["data"]
 	if code != 0 {
-		err = fmt.Errorf("api error, code=%v, data=%v", code, data)
+		err = fmt.Errorf("api error, code=%v, url=%v, body=%v, data=%v", code, url, string(body), data)
 		return
 	}
 

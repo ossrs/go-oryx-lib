@@ -70,9 +70,51 @@ func ExampleHttpTest_Error() {
 		// Response known complex error {code:xx,data:"xxx"}
 		oh.Error(nil, oh.SystemComplexError{oh.SystemError(100), "Error description"}).ServeHTTP(w, r)
 	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response known complex error {code:xx,data:"xxx"}
+		oh.CplxError(nil, oh.SystemError(100), "Error description").ServeHTTP(w, r)
+	})
 }
 
-func ExampleApi() {
+func ExampleWrite() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response data which can be marshal to json.
+		oh.WriteData(nil, map[string]interface{}{
+			"version": "1.0",
+			"count":   100,
+		})
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response unknown error with HTTP/500
+		oh.WriteError(nil, w, r, fmt.Errorf("System error"))
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response known error {code:xx}
+		oh.WriteError(nil, w, r, oh.SystemError(100))
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response known complex error {code:xx,data:"xxx"}
+		oh.WriteError(nil, w, r, oh.SystemComplexError{oh.SystemError(100), "Error description"})
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Response known complex error {code:xx,data:"xxx"}
+		oh.WriteCplxError(nil, w, r, oh.SystemError(100), "Error description")
+	})
+}
+
+func ExampleWriteVersion() {
+	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		// version is major.minor.revisoin-extra
+		oh.WriteVersion(w, r, "1.2.3-4")
+	})
+}
+
+func ExampleApiRequest() {
 	var err error
 	var body []byte
 	if _, body, err = oh.ApiRequest("http://127.0.0.1985/api/v1/versions"); err != nil {

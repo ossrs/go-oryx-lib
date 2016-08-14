@@ -176,3 +176,18 @@ func WriteVersion(w http.ResponseWriter, r *http.Request, version string) {
 		"signature": Server,
 	}).ServeHTTP(w, r)
 }
+
+// Directly write json data, a wrapper for Data().
+func WriteData(ctx ol.Context, w http.ResponseWriter, r *http.Request, v interface{}) {
+	Data(ctx, v).ServeHTTP(w, r)
+}
+
+// Directly write error, a wrapper for Error().
+func WriteError(ctx ol.Context, w http.ResponseWriter, r *http.Request, err error) {
+	Error(ctx, err).ServeHTTP(w, r)
+}
+
+// Directly write complex error, a wrappter for CplxError().
+func WriteCplxError(ctx ol.Context, w http.ResponseWriter, r *http.Request, code SystemError, message string) {
+	CplxError(ctx, code, message).ServeHTTP(w, r)
+}
