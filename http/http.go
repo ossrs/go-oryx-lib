@@ -21,12 +21,20 @@
 
 // The oryx http package provides standard request and response in json.
 //			Error, when error, use this handler.
+//			CplxError, for complex error, use this handler.
 //			Data, when no error, use this handler.
 //			SystemError, application level error code.
+//			SetHeader, for direclty response the raw stream.
 // The standard server response:
 //			code, an int error code.
 //			data, specifies the data.
-// The global variable Server is the header["Server"].
+// The api for simple api:
+//			WriteVersion, to directly response the version.
+//			WriteData, to directly write the data in json.
+//			WriteError, to directly write the error.
+//			WriteCplxError, to directly write the complex error.
+// The global variables:
+//			oh.Server, to set the response header["Server"].
 package http
 
 import (
@@ -69,6 +77,7 @@ func (v SystemComplexError) Error() string {
 
 // http standard error response.
 // @remark for not SystemError, we will use logger.E to print it.
+// @remark user can use WriteError() for simple api.
 func Error(ctx ol.Context, err error) http.Handler {
 	// for complex error, use code instead.
 	if v, ok := err.(SystemComplexError); ok {
@@ -94,12 +103,14 @@ func Error(ctx ol.Context, err error) http.Handler {
 }
 
 // Wrapper for complex error use Error(ctx, SystemComplexError{})
+// @remark user can use WriteCplxError() for simple api.
 func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
 	return Error(ctx, SystemComplexError{code, message})
 }
 
 // http normal response.
 // @remark user can use nil v to response success, which data is null.
+// @remark user can use WriteData() for simple api.
 func Data(ctx ol.Context, v interface{}) http.Handler {
 	rv := map[string]interface{}{
 		"code":   0,
@@ -116,7 +127,8 @@ func Data(ctx ol.Context, v interface{}) http.Handler {
 	return jsonHandler(ctx, rv)
 }
 
-// set http header.
+// set http header, for directly use the w,
+// for example, user want to directly write raw text.
 func SetHeader(w http.ResponseWriter) {
 	w.Header().Set("Server", Server)
 }
@@ -178,16 +190,19 @@ func WriteVersion(w http.ResponseWriter, r *http.Request, version string) {
 }
 
 // Directly write json data, a wrapper for Data().
+// @remark user can use Data() for group of complex apis.
 func WriteData(ctx ol.Context, w http.ResponseWriter, r *http.Request, v interface{}) {
 	Data(ctx, v).ServeHTTP(w, r)
 }
 
 // Directly write error, a wrapper for Error().
+// @remark user can use Error() for group of complex apis.
 func WriteError(ctx ol.Context, w http.ResponseWriter, r *http.Request, err error) {
 	Error(ctx, err).ServeHTTP(w, r)
 }
 
 // Directly write complex error, a wrappter for CplxError().
+// @remark user can use CplxError() for group of complex apis.
 func WriteCplxError(ctx ol.Context, w http.ResponseWriter, r *http.Request, code SystemError, message string) {
 	CplxError(ctx, code, message).ServeHTTP(w, r)
 }
