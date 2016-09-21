@@ -33,6 +33,7 @@ func ExampleSelfSignHttps() {
 		w.Write([]byte("Hello, HTTPS~"))
 	})
 
+	// http://studygolang.com/articles/3175
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -key server.key -out server.crt -days 365
 	m := https.NewSelfSignManager("server.crt", "server.key")
@@ -60,6 +61,9 @@ func ExampleSelfSignHttpAndHttps() {
 		}
 	}()
 
+	// http://studygolang.com/articles/3175
+	// openssl genrsa -out server.key 2048
+	// openssl req -new -x509 -key server.key -out server.crt -days 365
 	m := https.NewSelfSignManager("server.crt", "server.key")
 
 	svr := &http.Server{
