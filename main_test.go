@@ -19,38 +19,16 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package asprocess_test
+package main
 
 import (
-	oa "github.com/ossrs/go-oryx-lib/asprocess"
 	"os"
-	"os/signal"
-	"syscall"
+	"testing"
 )
 
-func ExampleAsProcess() {
-	// Without context and callback.
-	oa.Watch(nil, oa.CheckParentInterval, nil)
-
-	// Without context, use callback to cleanup.
-	oa.Watch(nil, oa.CheckParentInterval, oa.Cleanup(func() {
-		// Do cleanup when quit.
-	}))
+func TestDemo(t *testing.T) {
 }
 
-func ExampleAsProcess_NoQuit() {
-	// User control the quit event.
-	q := make(chan bool, 1)
-	oa.WatchNoExit(nil, oa.CheckParentInterval, q)
-
-	// Quit when parent changed or signals.
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
-
-	select {
-	case <-q:
-		// Quit for parent changed.
-	case <-c:
-		// Quit for signal.
-	}
+func TestMain(m *testing.M) {
+	os.Exit(m.Run())
 }

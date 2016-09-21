@@ -80,7 +80,7 @@ func ExampleHttpTest_Error() {
 func ExampleWrite() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Response data which can be marshal to json.
-		oh.WriteData(nil, map[string]interface{}{
+		oh.WriteData(nil, w, r, map[string]interface{}{
 			"version": "1.0",
 			"count":   100,
 		})
