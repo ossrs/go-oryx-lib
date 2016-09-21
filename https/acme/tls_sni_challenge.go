@@ -1,3 +1,4 @@
+// fork from https://github.com/rsc/letsencrypt/tree/master/vendor/github.com/xenolf/lego/acme
 // fork from https://github.com/xenolf/lego/tree/master/acme
 package acme
 
@@ -42,7 +43,7 @@ func (t *tlsSNIChallenge) Solve(chlng challenge, domain string) error {
 }
 
 // TLSSNI01ChallengeCert returns a certificate and target domain for the `tls-sni-01` challenge
-func TLSSNI01ChallengeCert(keyAuth string) (tls.Certificate, string, error) {
+func TLSSNI01ChallengeCertDomain(keyAuth string) (tls.Certificate, string, error) {
 	// generate a new RSA key for the certificates
 	tempPrivKey, err := generatePrivateKey(RSA2048)
 	if err != nil {
@@ -65,4 +66,10 @@ func TLSSNI01ChallengeCert(keyAuth string) (tls.Certificate, string, error) {
 	}
 
 	return certificate, domain, nil
+}
+
+// TLSSNI01ChallengeCert returns a certificate for the `tls-sni-01` challenge
+func TLSSNI01ChallengeCert(keyAuth string) (tls.Certificate, error) {
+	cert, _, err := TLSSNI01ChallengeCertDomain(keyAuth)
+	return cert, err
 }

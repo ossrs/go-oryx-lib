@@ -1,3 +1,4 @@
+// fork from https://github.com/rsc/letsencrypt/tree/master/vendor/github.com/xenolf/lego/acme
 // fork from https://github.com/xenolf/lego/tree/master/acme
 package acme
 
@@ -23,7 +24,6 @@ type recoveryKeyMessage struct {
 type registrationMessage struct {
 	Resource string   `json:"resource"`
 	Contact  []string `json:"contact"`
-	Delete   bool     `json:"delete,omitempty"`
 	//	RecoveryKey recoveryKeyMessage `json:"recoveryKey,omitempty"`
 }
 
@@ -114,5 +114,4 @@ type CertificateResource struct {
 	AccountRef    string `json:"accountRef,omitempty"`
 	PrivateKey    []byte `json:"-"`
 	Certificate   []byte `json:"-"`
-	CSR           []byte `json:"-"`
 }

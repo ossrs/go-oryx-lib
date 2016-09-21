@@ -1,3 +1,4 @@
+// fork from https://github.com/rsc/letsencrypt/tree/master/vendor/github.com/xenolf/lego/acme
 // fork from https://github.com/xenolf/lego/tree/master/acme
 package acme
 
@@ -31,7 +32,7 @@ func (s *TLSProviderServer) Present(domain, token, keyAuth string) error {
 		s.port = "443"
 	}
 
-	cert, _, err := TLSSNI01ChallengeCert(keyAuth)
+	cert, err := TLSSNI01ChallengeCert(keyAuth)
 	if err != nil {
 		return err
 	}

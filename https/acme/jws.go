@@ -1,3 +1,4 @@
+// fork from https://github.com/rsc/letsencrypt/tree/master/vendor/github.com/xenolf/lego/acme
 // fork from https://github.com/xenolf/lego/tree/master/acme
 package acme
 
@@ -9,7 +10,6 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"gopkg.in/square/go-jose.v1"
 )
@@ -18,7 +18,6 @@ type jws struct {
 	directoryURL string
 	privKey      crypto.PrivateKey
 	nonces       []string
-	sync.Mutex
 }
 
 func keyAsJWK(key interface{}) *jose.JsonWebKey {
@@ -78,8 +77,6 @@ func (j *jws) signContent(content []byte) (*jose.JsonWebSignature, error) {
 }
 
 func (j *jws) getNonceFromResponse(resp *http.Response) error {
-	j.Lock()
-	defer j.Unlock()
 	nonce := resp.Header.Get("Replay-Nonce")
 	if nonce == "" {
 		return fmt.Errorf("Server did not respond with a proper nonce header.")
@@ -106,11 +103,7 @@ func (j *jws) Nonce() (string, error) {
 			return nonce, err
 		}
 	}
-	if len(j.nonces) == 0 {
-		return "", fmt.Errorf("Can't get nonce")
-	}
-	j.Lock()
-	defer j.Unlock()
+
 	nonce, j.nonces = j.nonces[len(j.nonces)-1], j.nonces[:len(j.nonces)-1]
 	return nonce, nil
 }
