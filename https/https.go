@@ -21,3 +21,30 @@
 
 package https
 
+import (
+	"crypto/tls"
+	"fmt"
+)
+
+// The https manager which provides the certificate.
+type Manager interface {
+	GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error)
+}
+
+// The cert is sign by ourself.
+type selfSignManager struct {
+	certFile string
+	keyFile  string
+}
+
+func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	cert, err := tls.LoadX509KeyPair(v.certFile, v.keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load cert from %v/%v failed, err is %v", v.certFile, v.keyFile, err)
+	}
+	return &cert, err
+}
+
+func NewSelfSignManager(certFile, keyFile string) Manager {
+	return &selfSignManager{certFile: certFile, keyFile: keyFile}
+}

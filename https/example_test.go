@@ -21,3 +21,55 @@
 
 package https_test
 
+import (
+	"crypto/tls"
+	"fmt"
+	"github.com/ossrs/go-oryx-lib/https"
+	"net/http"
+)
+
+func ExampleSelfSignHttps() {
+	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, HTTPS~"))
+	})
+
+	// openssl genrsa -out server.key 2048
+	// openssl req -new -x509 -key server.key -out server.crt -days 365
+	m := https.NewSelfSignManager("server.crt", "server.key")
+
+	svr := &http.Server{
+		Addr: ":https",
+		TLSConfig: &tls.Config{
+			GetCertificate: m.GetCertificate,
+		},
+	}
+
+	if err := svr.ListenAndServeTLS("", ""); err != nil {
+		fmt.Println("serve failed, err is", err)
+	}
+}
+
+func ExampleSelfSignHttpAndHttps() {
+	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, HTTP and HTTPS~"))
+	})
+
+	go func() {
+		if err := http.ListenAndServe(":http", nil); err != nil {
+			fmt.Println("http serve failed, err is", err)
+		}
+	}()
+
+	m := https.NewSelfSignManager("server.crt", "server.key")
+
+	svr := &http.Server{
+		Addr: ":https",
+		TLSConfig: &tls.Config{
+			GetCertificate: m.GetCertificate,
+		},
+	}
+
+	if err := svr.ListenAndServeTLS("", ""); err != nil {
+		fmt.Println("https serve failed, err is", err)
+	}
+}
