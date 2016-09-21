@@ -1,6 +1,8 @@
 # go-oryx-lib
 
-The public library for go-oryx.
+[![CircleCI](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master.svg?style=svg&circle-token=6c8eac51700e7c8a4b64b714b3ce5775b518fd15)](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master)
+
+The public library for [go-oryx](https://github.com/ossrs/go-oryx).
 
 ## core
 
