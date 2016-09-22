@@ -77,17 +77,13 @@ type letsencryptManager struct {
 	lets letsencrypt.Manager
 }
 
-// Register the email to letsencrypt, cache the certs in cacheFile, set allow hosts, listen at http/tls for acme validation.
-// @remark set http to empty string to use ":http", listen at 80 to accept validation from letsencrypt.
-// @remark set tls to empty string to use ":https", listen at 443 to accept validation from letsencrypt.
+// Register the email to letsencrypt, cache the certs in cacheFile, set allow hosts.
 // @remark set hosts to empty string when allow all request hosts, but maybe attack.
 // @remark set email to nil to not regiester, use empty email to request cert from letsencrypt.
 // @remark set cacheFile to empty string to not cache the info and certs.
-func NewLetsencryptManager(http, tls, email string, hosts []string, cacheFile string) (m Manager, err error) {
+// @remark we only use tls validate, https://github.com/ietf-wg-acme/acme/blob/master/draft-ietf-acme-acme.md#tls-with-server-name-indication-tls-sni
+func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Manager, err error) {
 	v := &letsencryptManager{}
-
-	v.lets.HttpAddr = http
-	v.lets.TlsAddr = tls
 
 	if cacheFile != "" {
 		if err = v.lets.CacheFile(cacheFile); err != nil {

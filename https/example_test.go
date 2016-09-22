@@ -95,35 +95,13 @@ func ExampleLetsencryptManager() {
 
 	var err error
 	var m https.Manager
-	if m,err = https.NewLetsencryptManager(":5002", ":5001", "winlin@server.com", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
+	if m,err = https.NewLetsencryptManager("", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}
 
-	svr := &http.Server{
-		Addr: ":https",
-		TLSConfig: &tls.Config{
-			GetCertificate: m.GetCertificate,
-		},
-	}
-
-	if err := svr.ListenAndServeTLS("", ""); err != nil {
-		fmt.Println("https serve failed, err is", err)
-	}
-}
-
-func ExampleLetsencryptManagerSimple() {
-	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, HTTPS over letsencrypt~"))
-	})
-
-	var err error
-	var m https.Manager
-	if m,err = https.NewLetsencryptManager("", "", "", nil, "letsencrypt.cache"); err != nil {
-		fmt.Println("https failed, err is", err)
-		return
-	}
-
+	// @remark only support listen at :https, for the validation use tls,
+	//		https://github.com/ietf-wg-acme/acme/blob/master/draft-ietf-acme-acme.md#tls-with-server-name-indication-tls-sni
 	svr := &http.Server{
 		Addr: ":https",
 		TLSConfig: &tls.Config{
