@@ -87,3 +87,51 @@ func ExampleSelfSignHttpAndHttps() {
 		fmt.Println("https serve failed, err is", err)
 	}
 }
+
+func ExampleLetsencryptManager() {
+	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, HTTPS over letsencrypt~"))
+	})
+
+	var err error
+	var m https.Manager
+	if m,err = https.NewLetsencryptManager("winlin@server.com", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
+		fmt.Println("https failed, err is", err)
+		return
+	}
+
+	svr := &http.Server{
+		Addr: ":https",
+		TLSConfig: &tls.Config{
+			GetCertificate: m.GetCertificate,
+		},
+	}
+
+	if err := svr.ListenAndServeTLS("", ""); err != nil {
+		fmt.Println("https serve failed, err is", err)
+	}
+}
+
+func ExampleLetsencryptManagerSimple() {
+	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, HTTPS over letsencrypt~"))
+	})
+
+	var err error
+	var m https.Manager
+	if m,err = https.NewLetsencryptManager(nil, nil, "letsencrypt.cache"); err != nil {
+		fmt.Println("https failed, err is", err)
+		return
+	}
+
+	svr := &http.Server{
+		Addr: ":https",
+		TLSConfig: &tls.Config{
+			GetCertificate: m.GetCertificate,
+		},
+	}
+
+	if err := svr.ListenAndServeTLS("", ""); err != nil {
+		fmt.Println("https serve failed, err is", err)
+	}
+}

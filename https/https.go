@@ -70,3 +70,19 @@ func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 
 	return &cert, err
 }
+
+// The cert is sign by letsencrypt
+type letsencryptManager struct {
+}
+
+// Register the email to letsencrypt, cache the certs in cacheFile, set allow hosts.
+// @remark set hosts to nil when allow all request hosts, but maybe attack.
+// @remark set email to nil to not regiester, use empty email to request cert from letsencrypt.
+// @remark set cacheFile to nil to not cache the info and certs.
+func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Manager, err error) {
+	return &letsencryptManager{},nil
+}
+
+func (v *letsencryptManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return nil,nil
+}
