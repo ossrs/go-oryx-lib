@@ -166,8 +166,8 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-	"golang.org/x/time/rate"
+	"github.com/ossrs/go-oryx-lib/https/net/context"
+	"github.com/ossrs/go-oryx-lib/https/time/rate"
 
 	"github.com/ossrs/go-oryx-lib/https/acme"
 )
