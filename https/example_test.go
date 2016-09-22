@@ -36,7 +36,12 @@ func ExampleSelfSignHttps() {
 	// http://studygolang.com/articles/3175
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -key server.key -out server.crt -days 365
-	m := https.NewSelfSignManager("server.crt", "server.key")
+	var err error
+	var m https.Manager
+	if m,err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
+		fmt.Println("https failed, err is", err)
+		return
+	}
 
 	svr := &http.Server{
 		Addr: ":https",
@@ -64,7 +69,12 @@ func ExampleSelfSignHttpAndHttps() {
 	// http://studygolang.com/articles/3175
 	// openssl genrsa -out server.key 2048
 	// openssl req -new -x509 -key server.key -out server.crt -days 365
-	m := https.NewSelfSignManager("server.crt", "server.key")
+	var err error
+	var m https.Manager
+	if m,err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
+		fmt.Println("https failed, err is", err)
+		return
+	}
 
 	svr := &http.Server{
 		Addr: ":https",

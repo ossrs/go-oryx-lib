@@ -23,6 +23,9 @@ package https
 
 import (
 	"crypto/tls"
+	"runtime"
+	"strings"
+	"strconv"
 	"fmt"
 )
 
@@ -33,18 +36,37 @@ type Manager interface {
 
 // The cert is sign by ourself.
 type selfSignManager struct {
+	cert *tls.Certificate
 	certFile string
 	keyFile  string
 }
 
-func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	cert, err := tls.LoadX509KeyPair(v.certFile, v.keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("load cert from %v/%v failed, err is %v", v.certFile, v.keyFile, err)
+func NewSelfSignManager(certFile, keyFile string) (m Manager, err error) {
+	// check golang version, must 1.6+
+	version := strings.Trim(runtime.Version(), "go")
+	if versions := strings.Split(version, "."); len(versions) < 1 {
+		return nil, fmt.Errorf("invalid version=%v", version)
+	} else if minor,err := strconv.Atoi(versions[1]); err != nil {
+		return nil, fmt.Errorf("invalid version=%v, err=%v", version, err)
+	} else if minor < 6 {
+		return nil, fmt.Errorf("requires golang 1.6+, version=%v, minor=%v", version, minor)
 	}
-	return &cert, err
+
+	return &selfSignManager{certFile: certFile, keyFile: keyFile},nil
 }
 
-func NewSelfSignManager(certFile, keyFile string) Manager {
-	return &selfSignManager{certFile: certFile, keyFile: keyFile}
+func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	if v.cert != nil {
+		return v.cert,nil
+	}
+
+	cert, err := tls.LoadX509KeyPair(v.certFile, v.keyFile)
+	if err != nil {
+		return nil,err
+	}
+
+	// cache the cert.
+	v.cert = &cert
+
+	return &cert, err
 }
