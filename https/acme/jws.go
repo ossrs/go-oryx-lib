@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gopkg.in/square/go-jose.v1"
+	"github.com/ossrs/go-oryx-lib/https/jose"
 )
 
 type jws struct {
