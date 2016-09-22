@@ -5,7 +5,7 @@ package acme
 import (
 	"time"
 
-	"gopkg.in/square/go-jose.v1"
+	"github.com/ossrs/go-oryx-lib/https/jose"
 )
 
 type directory struct {
