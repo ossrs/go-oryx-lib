@@ -188,6 +188,10 @@ type Manager struct {
 	certCache    map[string]*cacheEntry
 	certTokens   map[string]*tls.Certificate
 	watchChan    chan struct{}
+
+	// the http and tls validation address, empty string to ignore.
+	HttpAddr     string
+	TlsAddr      string
 }
 
 // Serve runs an HTTP/HTTPS web server using TLS certificates obtained by the manager.
@@ -401,6 +405,20 @@ func (m *Manager) register(email string, prompt func(string) bool) error {
 	if err != nil {
 		return fmt.Errorf("create client: %v", err)
 	}
+
+	// https://github.com/xenolf/lego#acme-library-usage
+	// https://github.com/ietf-wg-acme/acme/blob/master/draft-ietf-acme-acme.md#http
+	if m.HttpAddr != "" {
+		if err = c.SetHTTPAddress(m.HttpAddr); err != nil {
+			return err
+		}
+	}
+	if m.TlsAddr != "" {
+		if err = c.SetTLSAddress(m.TlsAddr); err != nil {
+			return err
+		}
+	}
+
 	reg, err := c.Register()
 	if err != nil {
 		return fmt.Errorf("register: %v", err)

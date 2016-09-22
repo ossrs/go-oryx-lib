@@ -95,7 +95,7 @@ func ExampleLetsencryptManager() {
 
 	var err error
 	var m https.Manager
-	if m,err = https.NewLetsencryptManager("winlin@server.com", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
+	if m,err = https.NewLetsencryptManager(":5002", ":5001", "winlin@server.com", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}
@@ -119,7 +119,7 @@ func ExampleLetsencryptManagerSimple() {
 
 	var err error
 	var m https.Manager
-	if m,err = https.NewLetsencryptManager(nil, nil, "letsencrypt.cache"); err != nil {
+	if m,err = https.NewLetsencryptManager("", "", "", nil, "letsencrypt.cache"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}

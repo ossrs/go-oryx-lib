@@ -27,6 +27,7 @@ import (
 	"strings"
 	"strconv"
 	"fmt"
+	"github.com/ossrs/go-oryx-lib/https/letsencrypt"
 )
 
 // The https manager which provides the certificate.
@@ -73,16 +74,40 @@ func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 
 // The cert is sign by letsencrypt
 type letsencryptManager struct {
+	lets letsencrypt.Manager
 }
 
-// Register the email to letsencrypt, cache the certs in cacheFile, set allow hosts.
-// @remark set hosts to nil when allow all request hosts, but maybe attack.
+// Register the email to letsencrypt, cache the certs in cacheFile, set allow hosts, listen at http/tls for acme validation.
+// @remark set http to empty string to use ":http", listen at 80 to accept validation from letsencrypt.
+// @remark set tls to empty string to use ":https", listen at 443 to accept validation from letsencrypt.
+// @remark set hosts to empty string when allow all request hosts, but maybe attack.
 // @remark set email to nil to not regiester, use empty email to request cert from letsencrypt.
-// @remark set cacheFile to nil to not cache the info and certs.
-func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Manager, err error) {
-	return &letsencryptManager{},nil
+// @remark set cacheFile to empty string to not cache the info and certs.
+func NewLetsencryptManager(http, tls, email string, hosts []string, cacheFile string) (m Manager, err error) {
+	v := &letsencryptManager{}
+
+	v.lets.HttpAddr = http
+	v.lets.TlsAddr = tls
+
+	if cacheFile != "" {
+		if err = v.lets.CacheFile(cacheFile); err != nil {
+			return
+		}
+	}
+
+	if len(hosts) > 0 {
+		v.lets.SetHosts(hosts)
+	}
+
+	if email != "" {
+		if err = v.lets.Register(email, nil); err != nil {
+			return
+		}
+	}
+
+	return v,nil
 }
 
 func (v *letsencryptManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return nil,nil
+	return v.lets.GetCertificate(clientHello)
 }
