@@ -15,7 +15,7 @@ The core library including:
 - [x] [http](http/example_test.go): For http response with error, jsonp and std reponse.
 - [x] [asprocess](asprocess/example_test.go): The associate-process, for SRS/BMS to work with external process.
 - [x] [kxps](kxps/example_test.go): The k-some-ps, for example, kbps, krps.
+- [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 - [ ] [rtmp](rtmp/example_test.go): The rtmp protocol stack, for oryx.
-- [ ] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 
 Winlin 2016
