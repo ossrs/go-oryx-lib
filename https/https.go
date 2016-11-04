@@ -82,6 +82,7 @@ type letsencryptManager struct {
 // @remark set email to nil to not regiester, use empty email to request cert from letsencrypt.
 // @remark set cacheFile to empty string to not cache the info and certs.
 // @remark we only use tls validate, https://github.com/ietf-wg-acme/acme/blob/master/draft-ietf-acme-acme.md#tls-with-server-name-indication-tls-sni
+// 	so the https port must be 443, we cannot serve at other ports.
 func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Manager, err error) {
 	v := &letsencryptManager{}
 

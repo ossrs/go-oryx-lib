@@ -31,9 +31,15 @@ func ExampleLogger() {
 	ol.Trace.Println(nil, "The log text.")
 	ol.Warn.Println(nil, "The log text.")
 	ol.Error.Println(nil, "The log text.")
+
+	ol.I(nil, "The log text.")
+	ol.T(nil, "The log text.")
+	ol.W(nil, "The log text.")
+	ol.E(nil, "The log text.")
 }
 
-func ExampleLogger_Switch() {
+func ExampleLogger_File() {
+	// Open logger file and change the tank for logger.
 	var err error
 	var f *os.File
 	if f, err = os.Open("sys.log"); err != nil {
@@ -41,7 +47,24 @@ func ExampleLogger_Switch() {
 	}
 	ol.Switch(f)
 
-	// User must close current log file.
+	// Use logger, which will write to file.
+	ol.T(nil, "The log text.")
+
+	// Close logger file when your application quit.
+	defer ol.Close()
+}
+
+func ExampleLogger_Switch() {
+	// Initialize logger with file.
+	var err error
+	var f *os.File
+	if f, err = os.Open("sys.log"); err != nil {
+		return
+	}
+	ol.Switch(f)
+
+	// When need to reap log file,
+	// user must close current log file.
 	ol.Close()
 	// User can move the sys.log away.
 	// Then reopen the log file and notify logger to use it.
@@ -55,7 +78,8 @@ func ExampleLogger_Switch() {
 	defer ol.Close()
 }
 
-// Each context is specified a connection.
+// Each context is specified a connection,
+// which user must implement the interface.
 type context int
 
 func (v context) Cid() int {
