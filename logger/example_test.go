@@ -26,19 +26,21 @@ import (
 	"os"
 )
 
-func ExampleLogger() {
+func ExampleLogger_ToConsole() {
+	// Simply log to console.
 	ol.Info.Println(nil, "The log text.")
 	ol.Trace.Println(nil, "The log text.")
 	ol.Warn.Println(nil, "The log text.")
 	ol.Error.Println(nil, "The log text.")
 
+	// Use short aliases.
 	ol.I(nil, "The log text.")
 	ol.T(nil, "The log text.")
 	ol.W(nil, "The log text.")
 	ol.E(nil, "The log text.")
 }
 
-func ExampleLogger_File() {
+func ExampleLogger_ToFile() {
 	// Open logger file and change the tank for logger.
 	var err error
 	var f *os.File
@@ -54,7 +56,7 @@ func ExampleLogger_File() {
 	defer ol.Close()
 }
 
-func ExampleLogger_Switch() {
+func ExampleLogger_SwitchFile() {
 	// Initialize logger with file.
 	var err error
 	var f *os.File
