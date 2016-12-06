@@ -28,8 +28,8 @@ import (
 	"net/http"
 )
 
-// Requires golang 1.6+,
-// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+// Requires golang 1.6+, because there's bug in http.Server
+// to set the GetCertificate of TLSConfig.
 func ExampleLetsencryptManagerHttpAndHttps() {
 	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, HTTPS over letsencrypt~"))
@@ -62,8 +62,8 @@ func ExampleLetsencryptManagerHttpAndHttps() {
 	}
 }
 
-// Requires golang 1.6+,
-// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+// Requires golang 1.6+, because there's bug in http.Server
+// to set the GetCertificate of TLSConfig.
 func ExampleLetsencryptManagerHttps() {
 	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, HTTPS over letsencrypt~"))
@@ -90,8 +90,8 @@ func ExampleLetsencryptManagerHttps() {
 	}
 }
 
-// Requires golang 1.6+,
-// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+// Requires golang 1.6+, because there's bug in http.Server
+// to set the GetCertificate of TLSConfig.
 func ExampleSelfSignHttps() {
 	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, HTTPS~"))
@@ -119,8 +119,8 @@ func ExampleSelfSignHttps() {
 	}
 }
 
-// Requires golang 1.6+,
-// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+// Requires golang 1.6+, because there's bug in http.Server
+// to set the GetCertificate of TLSConfig.
 func ExampleSelfSignHttpAndHttps() {
 	http.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, HTTP and HTTPS~"))

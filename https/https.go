@@ -30,8 +30,8 @@ import (
 	"github.com/ossrs/go-oryx-lib/https/letsencrypt"
 )
 
-// Requires golang 1.6+,
-// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+// Requires golang 1.6+, because there's bug in http.Server
+// to set the GetCertificate of TLSConfig.
 func checkRuntime() (err error) {
 	version := strings.Trim(runtime.Version(), "go")
 	if versions := strings.Split(version, "."); len(versions) < 1 {
