@@ -30,6 +30,23 @@ import (
 	"github.com/ossrs/go-oryx-lib/https/letsencrypt"
 )
 
+// Requires golang 1.6+,
+// for the https library can't set the GetCertificate for TLSConfig of http.Server.
+func checkRuntime() (err error) {
+	version := strings.Trim(runtime.Version(), "go")
+	if versions := strings.Split(version, "."); len(versions) < 1 {
+		return fmt.Errorf("invalid version=%v", version)
+	} else if major,err := strconv.Atoi(versions[0]); err != nil {
+		return fmt.Errorf("invalid version=%v, err=%v", version, err)
+	} else if minor,err := strconv.Atoi(versions[1]); err != nil {
+		return fmt.Errorf("invalid version=%v, err=%v", version, err)
+	} else if major == 1 && minor < 6 {
+		return fmt.Errorf("requires golang 1.6+, version=%v(%v.%v)", version, major, minor)
+	}
+
+	return
+}
+
 // The https manager which provides the certificate.
 type Manager interface {
 	GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error)
@@ -43,16 +60,9 @@ type selfSignManager struct {
 }
 
 func NewSelfSignManager(certFile, keyFile string) (m Manager, err error) {
-	// check golang version, must 1.6+
-	version := strings.Trim(runtime.Version(), "go")
-	if versions := strings.Split(version, "."); len(versions) < 1 {
-		return nil, fmt.Errorf("invalid version=%v", version)
-	} else if minor,err := strconv.Atoi(versions[1]); err != nil {
-		return nil, fmt.Errorf("invalid version=%v, err=%v", version, err)
-	} else if minor < 6 {
-		return nil, fmt.Errorf("requires golang 1.6+, version=%v, minor=%v", version, minor)
+	if err = checkRuntime(); err != nil {
+		return
 	}
-
 	return &selfSignManager{certFile: certFile, keyFile: keyFile},nil
 }
 
@@ -85,6 +95,10 @@ type letsencryptManager struct {
 // 	so the https port must be 443, we cannot serve at other ports.
 func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Manager, err error) {
 	v := &letsencryptManager{}
+
+	if err = checkRuntime(); err != nil {
+		return
+	}
 
 	if cacheFile != "" {
 		if err = v.lets.CacheFile(cacheFile); err != nil {
