@@ -1,6 +1,7 @@
 # GMORYX
 
-The GMORYX(GOMOBILE ORYX) is a API adapter, by gomobile for Android or iOS.
+The GMORYX(GOMOBILE ORYX) is a API adapter to use [go-oryx-lib](https://github.com/ossrs/go-oryx-lib)
+in Android or iOS.
 
 - [x] AndroidExample, The example for Android.
 
