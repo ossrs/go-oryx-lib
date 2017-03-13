@@ -34,8 +34,10 @@ public class MainActivity extends AppCompatActivity {
         Gmoryx.httpHandle("/", new HttpHandler() {
             @Override
             public void serveHTTP(HttpResponseWriter w, HttpRequest r) {
+                Gmoryx.setHeader(w);
+
                 try {
-                    w.write(new String("<html>Hello, <a href='https://github.com/ossrs/go-oryx-lib/gmoryx'>GMORYX</a>~").getBytes());
+                    w.write(new String("<html>Hello, <a href='https://github.com/ossrs/go-oryx-lib/gmoryx'>GMOryx, GoMobile Oryx</a>~").getBytes());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -43,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         try {
+            Gmoryx.setServer("GMOryx/0.1");
             Gmoryx.httpListenAndServe(":8080", null);
             txtMain.setText("Please open http://" + getHostIP() + ":8080");
 
