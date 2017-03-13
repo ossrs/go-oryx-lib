@@ -18,4 +18,6 @@ The core library including:
 - [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 - [ ] [rtmp](rtmp/example_test.go): The rtmp protocol stack, for oryx.
 
+> Remark: For `golang.org/x/crypto`, user can download from [crypto](https://github.com/golang/crypto).
+
 Winlin 2016
