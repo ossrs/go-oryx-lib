@@ -16,7 +16,7 @@ The core library including:
 - [x] [asprocess](asprocess/example_test.go): The associate-process, for SRS/BMS to work with external process.
 - [x] [kxps](kxps/example_test.go): The k-some-ps, for example, kbps, krps.
 - [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
-- [x] [gma](gma/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
+- [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [ ] [rtmp](rtmp/example_test.go): The rtmp protocol stack, for oryx.
 
 > Remark: For `golang.org/x/crypto`, user can download from [crypto](https://github.com/golang/crypto).
