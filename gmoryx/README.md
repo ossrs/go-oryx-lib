@@ -3,19 +3,23 @@
 The GMORYX(GOMOBILE ORYX) is a API adapter to use [go-oryx-lib](https://github.com/ossrs/go-oryx-lib)
 in Android or iOS.
 
-- [x] AndroidExample, The example for Android.
+- [x] AndroidHTTPServer, The HTTP server example for Android.
 
-## AndroidExample
+## GOMOBILE
 
-Please build out the library `gmoryx.aar`:
+To setup the gomobile, please read [blog post](http://blog.csdn.net/win_lin/article/details/60956485).
+
+## AndroidHTTPServer
+
+First of all, please build the library `gmoryx.aar` by:
 
 ```
 cd $GOPATH/src/github.com/ossrs/go-oryx-lib/gmoryx &&
-mkdir -p AndroidExample/app/libs &&
-gomobile bind -target=android -o AndroidExample/app/libs/gmoryx.aar
+mkdir -p AndroidHTTPServer/app/libs &&
+gomobile bind -target=android -o AndroidHTTPServer/app/libs/gmoryx.aar
 ```
 
-For setup enviroment for gomobile, read [blog post](http://blog.csdn.net/win_lin/article/details/60956485).
+> Remark: Read [GOMOBILE](#gomobile) to setup environment.
 
 Open this project in AndroidStudio, run in Android phone, which will start a web server:
 

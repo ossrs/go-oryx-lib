@@ -1,4 +1,4 @@
-package org.ossrs.example.gma;
+package org.ossrs.gmoryx.example.httpd;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -37,7 +37,12 @@ public class MainActivity extends AppCompatActivity {
                 Gmoryx.setHeader(w);
 
                 try {
-                    w.write(new String("<html>Hello, <a href='https://github.com/ossrs/go-oryx-lib/tree/master/gmoryx'>GMOryx, GoMobile Oryx</a>~").getBytes());
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("<html>");
+                    sb.append("Welcome to ");
+                    sb.append("<a href='https://github.com/ossrs/go-oryx-lib/tree/master/gmoryx'>GMOryx(GoMobile Oryx)</a>");
+                    sb.append("!");
+                    w.write(sb.toString().getBytes());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
