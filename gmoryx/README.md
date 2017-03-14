@@ -7,7 +7,20 @@ in Android or iOS.
 
 ## GOMOBILE
 
-To setup the gomobile, please read [blog post](http://blog.csdn.net/win_lin/article/details/60956485).
+To setup the [gomobile](https://github.com/golang/go/wiki/Mobile),
+please read [blog post](http://blog.csdn.net/win_lin/article/details/60956485).
+
+The Go mobile subrepository adds support for mobile platforms (Android and iOS)
+and provides tools to build mobile applications.
+
+There are two strategies you can follow to include Go into your mobile stack:
+
+- Writing all-Go native mobile applications.
+- Writing SDK applications by generating bindings from a Go package and invoke them
+from Java (on Android) and Objective-C (on iOS).
+
+For more information, please read [wiki](https://github.com/golang/go/wiki/Mobile)
+and [repository](https://github.com/golang/mobile).
 
 ## AndroidHTTPServer
 
