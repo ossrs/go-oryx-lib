@@ -85,5 +85,9 @@ func HttpShutdown() (err error) {
 		httpListener = nil
 	}
 
+	if err != nil {
+		return
+	}
+
 	return httpError
 }
