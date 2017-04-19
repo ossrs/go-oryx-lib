@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ocsp"
+	"github.com/ossrs/go-oryx-lib/https/crypto/ocsp"
 )
 
 // KeyType represents the key algo as well as the key size or curve to use.

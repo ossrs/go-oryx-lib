@@ -27,6 +27,6 @@ Other audio/video libraries:
 
 ## Depends
 
-* `golang.org/x/crypto` by https, read [crypto](https://github.com/golang/crypto).
+Only depends on golang standard library.
 
 Winlin 2016

@@ -53,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
             Gmoryx.setServer("GMOryx/0.1");
             Gmoryx.httpListenAndServe(":8080", null);
             txtMain.setText("Web server: http://" + getHostIP() + ":8080\nPlease access from other machine.");
-
         } catch (Exception e) {
             e.printStackTrace();
         }
