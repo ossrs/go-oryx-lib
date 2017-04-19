@@ -19,7 +19,7 @@ The core library including:
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [ ] [rtmp](rtmp/example_test.go): The rtmp protocol stack, for oryx.
 
-> Remark: For `golang.org/x/crypto` used in https, user can download from [crypto](https://github.com/golang/crypto).
+> Remark: For `golang.org/x/crypto` depended by https, user can download from [crypto](https://github.com/golang/crypto).
 
 Other audio/video libraries:
 
