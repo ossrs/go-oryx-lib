@@ -30,13 +30,13 @@ import (
 func ExampleOptions() {
 	var err error
 
-	// Parse url from argv:
-	//		./binary -c url
+	// Parse config file from argv:
+	//		./binary -c file
 	//		./binary -c conf/oryx.json
-	url := oo.ParseArgv("conf/console.json", "1.0", "oryx")
+	configFile := oo.ParseArgv("conf/console.json", "1.0", "oryx")
 
 	var f *os.File
-	if f, err = os.Open(url); err != nil {
+	if f, err = os.Open(configFile); err != nil {
 		fmt.Println("Open config file failed, err is", err)
 		return
 	}
