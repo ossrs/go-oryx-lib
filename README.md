@@ -5,7 +5,7 @@
 
 The public library for [go-oryx](https://github.com/ossrs/go-oryx).
 
-## core
+## Packages
 
 The core library including:
 
@@ -19,12 +19,14 @@ The core library including:
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [ ] [rtmp](rtmp/example_test.go): The rtmp protocol stack, for oryx.
 
-> Remark: For `golang.org/x/crypto` depended by https, user can download from [crypto](https://github.com/golang/crypto).
-
 Other audio/video libraries:
 
 - [x] [go-speex](https://github.com/winlinvip/go-speex): A go binding for [speex](https://speex.org/).
 - [x] [go-fdkaac](https://github.com/winlinvip/go-fdkaac): A go binding for [fdk-aac](https://github.com/mstorsjo/fdk-aac).
 - [x] [go-aresample](https://github.com/winlinvip/go-aresample): Resample the audio PCM.
+
+## Depends
+
+* `golang.org/x/crypto` by https, read [crypto](https://github.com/golang/crypto).
 
 Winlin 2016
