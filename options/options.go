@@ -34,7 +34,9 @@ import (
 )
 
 // parse the argv with config, version and signature.
-// @param rcf the recomment config file path.
+// @param rcf The recomment config file path.
+// @param version The vesion of application, such as 1.2.3
+// @param signature The signature of application, such as SRS/1.2.3
 func ParseArgv(rcf, version, signature string) (confFile string) {
 	// the args format:
 	//          -c conf/ory.json
@@ -44,7 +46,7 @@ func ParseArgv(rcf, version, signature string) (confFile string) {
 	//          --conf=conf/oryx.json
 	if true {
 		dv := ""
-		ua := "the config file"
+		ua := "The config file"
 		flag.StringVar(&confFile, "c", dv, ua)
 		flag.StringVar(&confFile, "conf", dv, ua)
 	}
@@ -52,7 +54,7 @@ func ParseArgv(rcf, version, signature string) (confFile string) {
 	var showVersion bool
 	if true {
 		dv := false
-		ua := "print version"
+		ua := "Print version"
 		flag.BoolVar(&showVersion, "v", dv, ua)
 		flag.BoolVar(&showVersion, "V", dv, ua)
 		flag.BoolVar(&showVersion, "version", dv, ua)
@@ -69,10 +71,10 @@ func ParseArgv(rcf, version, signature string) (confFile string) {
 	flag.Usage = func() {
 		fmt.Println(signature)
 		fmt.Println(fmt.Sprintf("Usage: %v [-c|--conf <filename>] [-?|-h|--help] [-v|-V|--version] [-g|--signature]", os.Args[0]))
-		fmt.Println(fmt.Sprintf("	    -c, --conf filename     : the config file path"))
-		fmt.Println(fmt.Sprintf("	    -?, -h, --help          : show this help and exit"))
-		fmt.Println(fmt.Sprintf("	    -v, -V, --version       : print version and exit"))
-		fmt.Println(fmt.Sprintf("	    -g, --signature         : print signature and exit"))
+		fmt.Println(fmt.Sprintf("	    -c, --conf filename     : The config file path"))
+		fmt.Println(fmt.Sprintf("	    -?, -h, --help          : Show this help and exit"))
+		fmt.Println(fmt.Sprintf("	    -v, -V, --version       : Print version and exit"))
+		fmt.Println(fmt.Sprintf("	    -g, --signature         : Print signature and exit"))
 		fmt.Println(fmt.Sprintf("For example:"))
 		fmt.Println(fmt.Sprintf("	    %v -c %v", os.Args[0], rcf))
 	}

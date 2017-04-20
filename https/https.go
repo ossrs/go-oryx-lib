@@ -23,11 +23,11 @@ package https
 
 import (
 	"crypto/tls"
-	"runtime"
-	"strings"
-	"strconv"
 	"fmt"
 	"github.com/ossrs/go-oryx-lib/https/letsencrypt"
+	"runtime"
+	"strconv"
+	"strings"
 )
 
 // Requires golang 1.6+, because there's bug in http.Server
@@ -36,9 +36,9 @@ func checkRuntime() (err error) {
 	version := strings.Trim(runtime.Version(), "go")
 	if versions := strings.Split(version, "."); len(versions) < 1 {
 		return fmt.Errorf("invalid version=%v", version)
-	} else if major,err := strconv.Atoi(versions[0]); err != nil {
+	} else if major, err := strconv.Atoi(versions[0]); err != nil {
 		return fmt.Errorf("invalid version=%v, err=%v", version, err)
-	} else if minor,err := strconv.Atoi(versions[1]); err != nil {
+	} else if minor, err := strconv.Atoi(versions[1]); err != nil {
 		return fmt.Errorf("invalid version=%v, err=%v", version, err)
 	} else if major == 1 && minor < 6 {
 		return fmt.Errorf("requires golang 1.6+, version=%v(%v.%v)", version, major, minor)
@@ -54,7 +54,7 @@ type Manager interface {
 
 // The cert is sign by ourself.
 type selfSignManager struct {
-	cert *tls.Certificate
+	cert     *tls.Certificate
 	certFile string
 	keyFile  string
 }
@@ -63,17 +63,17 @@ func NewSelfSignManager(certFile, keyFile string) (m Manager, err error) {
 	if err = checkRuntime(); err != nil {
 		return
 	}
-	return &selfSignManager{certFile: certFile, keyFile: keyFile},nil
+	return &selfSignManager{certFile: certFile, keyFile: keyFile}, nil
 }
 
 func (v *selfSignManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if v.cert != nil {
-		return v.cert,nil
+		return v.cert, nil
 	}
 
 	cert, err := tls.LoadX509KeyPair(v.certFile, v.keyFile)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	// cache the cert.
@@ -116,7 +116,7 @@ func NewLetsencryptManager(email string, hosts []string, cacheFile string) (m Ma
 		}
 	}
 
-	return v,nil
+	return v, nil
 }
 
 func (v *letsencryptManager) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {

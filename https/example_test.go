@@ -43,7 +43,7 @@ func ExampleLetsencryptManagerHttpAndHttps() {
 
 	var err error
 	var m https.Manager
-	if m,err = https.NewLetsencryptManager("", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
+	if m, err = https.NewLetsencryptManager("", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}
@@ -71,7 +71,7 @@ func ExampleLetsencryptManagerHttps() {
 
 	var err error
 	var m https.Manager
-	if m,err = https.NewLetsencryptManager("", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
+	if m, err = https.NewLetsencryptManager("", []string{"winlin.cn"}, "letsencrypt.cache"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}
@@ -102,7 +102,7 @@ func ExampleSelfSignHttps() {
 	// openssl req -new -x509 -key server.key -out server.crt -days 365
 	var err error
 	var m https.Manager
-	if m,err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
+	if m, err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}
@@ -137,7 +137,7 @@ func ExampleSelfSignHttpAndHttps() {
 	// openssl req -new -x509 -key server.key -out server.crt -days 365
 	var err error
 	var m https.Manager
-	if m,err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
+	if m, err = https.NewSelfSignManager("server.crt", "server.key"); err != nil {
 		fmt.Println("https failed, err is", err)
 		return
 	}

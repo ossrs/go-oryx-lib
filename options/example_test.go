@@ -33,7 +33,7 @@ func ExampleOptions() {
 	// Parse config file from argv:
 	//		./binary -c file
 	//		./binary -c conf/oryx.json
-	configFile := oo.ParseArgv("conf/console.json", "1.0", "oryx")
+	configFile := oo.ParseArgv("conf/console.json", "1.0", "GoOryx/1.0")
 
 	var f *os.File
 	if f, err = os.Open(configFile); err != nil {

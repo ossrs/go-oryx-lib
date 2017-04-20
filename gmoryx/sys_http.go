@@ -23,9 +23,9 @@
 package gmoryx
 
 import (
-	"net/http"
-	"net"
 	"fmt"
+	"net"
+	"net/http"
 )
 
 type HttpResponseWriter interface {
@@ -41,18 +41,19 @@ type HttpHandler interface {
 }
 
 func HttpHandle(pattern string, handler HttpHandler) {
-	http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request){
-		handler.ServeHTTP(w, &HttpRequest{r:r,})
+	http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		handler.ServeHTTP(w, &HttpRequest{r: r})
 	})
 }
 
 var httpError error
 var httpListener net.Listener
+
 func HttpListenAndServe(addr string, handler HttpHandler) (err error) {
 	var h http.Handler
 	if handler != nil {
-		h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
-			handler.ServeHTTP(w, &HttpRequest{r:r,})
+		h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler.ServeHTTP(w, &HttpRequest{r: r})
 		})
 	}
 
@@ -67,8 +68,8 @@ func HttpListenAndServe(addr string, handler HttpHandler) (err error) {
 		return
 	}
 
-	go func(){
-		defer func(){
+	go func() {
+		defer func() {
 			if r := recover(); r != nil {
 				httpError = fmt.Errorf("Recover from %v", r)
 			}
