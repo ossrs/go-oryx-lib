@@ -18,7 +18,7 @@ The core library including:
 - [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
-- [ ] [flv](flv/example_test.go): The FLV muxer, for oryx.
+- [ ] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
 
 Other audio/video libraries:
 
