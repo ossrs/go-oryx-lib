@@ -72,10 +72,10 @@ type Demuxer interface {
 var ErrSignature = errors.New("FLV signatures are illegal")
 
 // Create a demuxer object.
-func NewDemuxer(r io.Reader) Demuxer {
+func NewDemuxer(r io.Reader) (Demuxer, error) {
 	return &demuxer{
 		r: r,
-	}
+	}, nil
 }
 
 type demuxer struct {
@@ -125,6 +125,83 @@ func (v *demuxer) ReadTag(tagSize uint32) (tag []byte, err error) {
 
 	p := h.Bytes()
 	tag = p[0 : len(p)-4]
+
+	return
+}
+
+// The FLV muxer is used to write packet in FLV protocol.
+type Muxer interface {
+	// Write the FLV header.
+	WriteHeader(hasVideo, hasAudio bool) (err error)
+	// Write A FLV tag.
+	WriteTag(tagType TagType, timestamp uint32, tag []byte) (err error)
+}
+
+// Create a muxer object.
+func NewMuxer(w io.Writer) (Muxer, error) {
+	return &muxer{
+		w: w,
+	}, nil
+}
+
+type muxer struct {
+	w io.Writer
+}
+
+func (v *muxer) WriteHeader(hasVideo, hasAudio bool) (err error) {
+	var flags byte
+	if hasVideo {
+		flags |= 0x01
+	}
+	if hasAudio {
+		flags |= 0x04
+	}
+
+	r := bytes.NewReader([]byte{
+		byte('F'), byte('L'), byte('V'),
+		0x01,
+		flags,
+		0x00, 0x00, 0x00, 0x09,
+		0x00, 0x00, 0x00, 0x00,
+	})
+
+	if _, err = io.Copy(v.w, r); err != nil {
+		return
+	}
+
+	return
+}
+
+func (v *muxer) WriteTag(tagType TagType, timestamp uint32, tag []byte) (err error) {
+	// Tag header.
+	tagSize := uint32(len(tag))
+
+	r := bytes.NewReader([]byte{
+		byte(tagType),
+		byte(tagSize >> 16), byte(tagSize >> 8), byte(tagSize),
+		byte(timestamp >> 16), byte(timestamp >> 8), byte(timestamp),
+		byte(timestamp >> 24),
+		0x00, 0x00, 0x00,
+	})
+
+	if _, err = io.Copy(v.w, r); err != nil {
+		return
+	}
+
+	// TAG
+	if _, err = io.Copy(v.w, bytes.NewReader(tag)); err != nil {
+		return
+	}
+
+	// Previous tag size.
+	pts := uint32(11 + len(tag))
+	r = bytes.NewReader([]byte{
+		byte(pts >> 24), byte(pts >> 16), byte(pts >> 8), byte(pts),
+	})
+
+	if _, err = io.Copy(v.w, r); err != nil {
+		return
+	}
 
 	return
 }
