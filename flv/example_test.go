@@ -30,9 +30,13 @@ func ExampleDemuxer() {
 	// To open a flv file, or http flv stream.
 	var r io.Reader
 
-	f := flv.NewDemuxer(r)
-
 	var err error
+	var f flv.Demuxer
+	if f, err = flv.NewDemuxer(r); err != nil {
+		return
+	}
+	defer f.Close()
+
 	var version uint8
 	var hasVideo, hasAudio bool
 	if version, hasVideo, hasAudio, err = f.ReadHeader(); err != nil {
@@ -60,4 +64,28 @@ func ExampleDemuxer() {
 	_ = tagType
 	_ = timestamp
 	_ = tag
+}
+
+func ExampleMuxer() {
+	// To open a flv file or http post stream.
+	var w io.Writer
+
+	var err error
+	var f flv.Muxer
+	if f, err = flv.NewMuxer(w); err != nil {
+		return
+	}
+	defer f.Close()
+
+	if err = f.WriteHeader(true, true); err != nil {
+		return
+	}
+
+	var tagType flv.TagType
+	var timestamp uint32
+	var tag []byte
+	// Get a FLV tag to write to muxer.
+	if err = f.WriteTag(tagType, timestamp, tag); err != nil {
+		return
+	}
 }

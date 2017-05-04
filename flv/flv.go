@@ -66,6 +66,8 @@ type Demuxer interface {
 	ReadTagHeader() (tagType TagType, tagSize, timestamp uint32, err error)
 	// Read the FLV tag body, drop the next 4 bytes previous tag size.
 	ReadTag(tagSize uint32) (tag []byte, err error)
+	// Close the demuxer.
+	Close() error
 }
 
 // When FLV signature is not "FLV"
@@ -129,12 +131,18 @@ func (v *demuxer) ReadTag(tagSize uint32) (tag []byte, err error) {
 	return
 }
 
+func (v *demuxer) Close() error {
+	return nil
+}
+
 // The FLV muxer is used to write packet in FLV protocol.
 type Muxer interface {
 	// Write the FLV header.
 	WriteHeader(hasVideo, hasAudio bool) (err error)
 	// Write A FLV tag.
 	WriteTag(tagType TagType, timestamp uint32, tag []byte) (err error)
+	// Close the muxer.
+	Close() error
 }
 
 // Create a muxer object.
@@ -204,4 +212,8 @@ func (v *muxer) WriteTag(tagType TagType, timestamp uint32, tag []byte) (err err
 	}
 
 	return
+}
+
+func (v *muxer) Close() error {
+	return nil
 }
