@@ -192,6 +192,10 @@ func (v *Protocol) ExpectPacket(filter func(*Message, Packet) bool) (m *Message,
 			return
 		}
 
+		if filter == nil {
+			return
+		}
+
 		if filter(m, pkt) {
 			return
 		}
@@ -227,7 +231,8 @@ func (v *Protocol) parseAMFObject(p []byte) (pkt Packet, err error) {
 	}
 	//fmt.Println(commandName, p)
 
-	if commandName == commandResult || commandName == commandError {
+	switch commandName {
+	case commandResult, commandError:
 		var transactionID amf0.Number
 		if err = transactionID.UnmarshalBinary(p[commandName.Size():]); err != nil {
 			return
@@ -251,14 +256,19 @@ func (v *Protocol) parseAMFObject(p []byte) (pkt Packet, err error) {
 
 		switch requestName {
 		case commandConnect:
-			pkt = NewConnectAppResPacket(transactionID)
-			return pkt, pkt.UnmarshalBinary(p)
+			return NewConnectAppResPacket(transactionID), nil
+		case commandCreateStream:
+			return NewCreateStreamResPacket(transactionID), nil
 		default:
 			return nil, fmt.Errorf("No request for %v", string(requestName))
 		}
+	case commandConnect:
+		return NewConnectAppPacket(), nil
+	case commandPublish:
+		return NewPublishPacket(), nil
+	default:
+		return NewCallPacket(), nil
 	}
-
-	return nil, fmt.Errorf("Unknown request %v", string(commandName))
 }
 
 func (v *Protocol) DecodeMessage(m *Message) (pkt Packet, err error) {
@@ -701,13 +711,23 @@ func (v *Protocol) WritePacket(pkt Packet, streamID int) (err error) {
 }
 
 func (v *Protocol) onPacketWriten(m *Message, pkt Packet) (err error) {
+	var tid amf0.Number
+	var name amf0.String
+
 	switch pkt := pkt.(type) {
 	case *ConnectAppPacket:
+		tid, name = pkt.TransactionID, pkt.CommandName
+	case *CreateStreamPacket:
+		tid, name = pkt.TransactionID, pkt.CommandName
+	}
+
+	if tid > 0 && len(name) > 0 {
 		v.input.ltransactions.Lock()
 		defer v.input.ltransactions.Unlock()
 
-		v.input.transactions[pkt.TransactionID] = pkt.CommandName
+		v.input.transactions[tid] = name
 	}
+
 	return
 }
 
@@ -1120,6 +1140,264 @@ func (v *ConnectAppResPacket) UnmarshalBinary(data []byte) (err error) {
 	if v.CommandName != commandResult {
 		return fmt.Errorf("Invalid command name %v", string(v.CommandName))
 	}
+
+	return
+}
+
+// A Call object, command object is variant.
+type variantCallPacket struct {
+	CommandName   amf0.String
+	TransactionID amf0.Number
+	CommandObject amf0.Amf0 // object or null
+}
+
+func (v *variantCallPacket) BetterCid() chunkID {
+	return chunkIDOverConnection
+}
+
+func (v *variantCallPacket) Type() MessageType {
+	return MessageTypeAMF0Command
+}
+
+func (v *variantCallPacket) Size() int {
+	size := v.CommandName.Size() + v.TransactionID.Size()
+
+	if v.CommandObject != nil {
+		size += v.CommandObject.Size()
+	}
+
+	return size
+}
+
+func (v *variantCallPacket) UnmarshalBinary(data []byte) (err error) {
+	p := data
+
+	if err = v.CommandName.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.CommandName.Size():]
+
+	if err = v.TransactionID.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.TransactionID.Size():]
+
+	if len(p) > 0 {
+		if v.CommandObject, err = amf0.Discovery(p); err != nil {
+			return
+		}
+		if err = v.CommandObject.UnmarshalBinary(p); err != nil {
+			return
+		}
+		p = p[v.CommandObject.Size():]
+	}
+
+	return
+}
+
+func (v *variantCallPacket) MarshalBinary() (data []byte, err error) {
+	var pb []byte
+	if pb, err = v.CommandName.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if pb, err = v.TransactionID.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if v.CommandObject != nil {
+		if pb, err = v.CommandObject.MarshalBinary(); err != nil {
+			return
+		}
+		data = append(data, pb...)
+	}
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 51, @section 4.1.2. Call
+// The call method of the NetConnection object runs remote procedure
+// calls (RPC) at the receiving end. The called RPC name is passed as a
+// parameter to the call command.
+// @remark onStatus packet is a call packet.
+type CallPacket struct {
+	variantCallPacket
+	Args amf0.Amf0 // optional or object or null
+}
+
+func NewCallPacket() *CallPacket {
+	return &CallPacket{}
+}
+
+func (v *CallPacket) Size() int {
+	size := v.variantCallPacket.Size()
+
+	if v.Args != nil {
+		size += v.Args.Size()
+	}
+
+	return size
+}
+
+func (v *CallPacket) UnmarshalBinary(data []byte) (err error) {
+	p := data
+
+	if err = v.variantCallPacket.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.variantCallPacket.Size():]
+
+	if len(p) > 0 {
+		if v.Args, err = amf0.Discovery(p); err != nil {
+			return
+		}
+		if err = v.Args.UnmarshalBinary(p); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func (v *CallPacket) MarshalBinary() (data []byte, err error) {
+	var pb []byte
+	if pb, err = v.variantCallPacket.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if v.Args != nil {
+		if pb, err = v.Args.MarshalBinary(); err != nil {
+			return
+		}
+		data = append(data, pb...)
+	}
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 52, @section 4.1.3. createStream
+// The client sends this command to the server to create a logical
+// channel for message communication The publishing of audio, video, and
+// metadata is carried out over stream channel created using the
+// createStream command.
+type CreateStreamPacket struct {
+	variantCallPacket
+}
+
+func NewCreateStreamPacket() *CreateStreamPacket {
+	v := &CreateStreamPacket{}
+	v.CommandName = commandCreateStream
+	v.TransactionID = amf0.Number(2)
+	v.CommandObject = amf0.NewNull()
+	return v
+}
+
+// The response for create stream
+type CreateStreamResPacket struct {
+	variantCallPacket
+	StreamID amf0.Number
+}
+
+func NewCreateStreamResPacket(tid amf0.Number) *CreateStreamResPacket {
+	v := &CreateStreamResPacket{}
+	v.CommandName = commandResult
+	v.TransactionID = tid
+	v.CommandObject = amf0.NewNull()
+	return v
+}
+
+func (v *CreateStreamResPacket) Size() int {
+	return v.variantCallPacket.Size() + v.StreamID.Size()
+}
+
+func (v *CreateStreamResPacket) UnmarshalBinary(data []byte) (err error) {
+	p := data
+
+	if err = v.variantCallPacket.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.variantCallPacket.Size():]
+
+	if err = v.StreamID.UnmarshalBinary(p); err != nil {
+		return
+	}
+
+	return
+}
+
+func (v *CreateStreamResPacket) MarshalBinary() (data []byte, err error) {
+	var pb []byte
+	if pb, err = v.variantCallPacket.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if pb, err = v.StreamID.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 64, @section 4.2.6. Publish
+type PublishPacket struct {
+	variantCallPacket
+	StreamName amf0.String
+	StreamType amf0.String
+}
+
+func NewPublishPacket() *PublishPacket {
+	v := &PublishPacket{}
+	v.CommandName = commandPublish
+	v.CommandObject = amf0.NewNull()
+	v.StreamType = amf0.String("live")
+	return v
+}
+
+func (v *PublishPacket) Size() int {
+	return v.variantCallPacket.Size() + v.StreamName.Size() + v.StreamType.Size()
+}
+
+func (v *PublishPacket) UnmarshalBinary(data []byte) (err error) {
+	p := data
+
+	if err = v.variantCallPacket.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.variantCallPacket.Size():]
+
+	if err = v.StreamName.UnmarshalBinary(p); err != nil {
+		return
+	}
+	p = p[v.StreamName.Size():]
+
+	if err = v.StreamType.UnmarshalBinary(p); err != nil {
+		return
+	}
+
+	return
+}
+
+func (v *PublishPacket) MarshalBinary() (data []byte, err error) {
+	var pb []byte
+	if pb, err = v.variantCallPacket.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if pb, err = v.StreamName.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
+
+	if pb, err = v.StreamType.MarshalBinary(); err != nil {
+		return
+	}
+	data = append(data, pb...)
 
 	return
 }

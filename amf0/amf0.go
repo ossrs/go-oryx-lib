@@ -127,7 +127,7 @@ func Discovery(p []byte) (a Amf0, err error) {
 	case markerNumber:
 		return NewNumber(0), nil
 	case markerBoolean:
-		return NewBoolean(false), nil
+		return newBoolean(false), nil
 	case markerString:
 		return NewString(""), nil
 	case markerObject:
@@ -632,7 +632,7 @@ type null struct {
 	singleMarkerObject
 }
 
-func NewNull() Amf0 {
+func NewNull() *null {
 	v := null{}
 	v.singleMarkerObject.target = markerNull
 	return &v
@@ -652,7 +652,7 @@ func NewUndefined() Amf0 {
 // The AMF0 boolean, please read @doc amf0_spec_121207.pdf, @page 5, @section 2.3 Boolean Type
 type Boolean bool
 
-func NewBoolean(b bool) Amf0 {
+func newBoolean(b bool) Amf0 {
 	v := Boolean(b)
 	return &v
 }
