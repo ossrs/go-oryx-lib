@@ -32,6 +32,7 @@ import (
 	"github.com/ossrs/go-oryx-lib/amf0"
 	"io"
 	"math/rand"
+	"reflect"
 	"sync"
 )
 
@@ -182,23 +183,33 @@ func NewProtocol(rw io.ReadWriter) *Protocol {
 	return v
 }
 
-func (v *Protocol) ExpectPacket(filter func(*Message, Packet) bool) (m *Message, pkt Packet, err error) {
+func (v *Protocol) ExpectPacket(ppkt interface{}) (m *Message, err error) {
+	// ppkt must be a **ptr, the elem is *ptr used to check the assignable.
+	ppktt := reflect.TypeOf(ppkt).Elem()
+	ppktv := reflect.ValueOf(ppkt)
+
+	if required := reflect.TypeOf((*Packet)(nil)).Elem(); !ppktt.Implements(required) {
+		return nil, fmt.Errorf("%v not implements %v", ppktt, required)
+	}
+
 	for {
 		if m, err = v.ReadMessage(); err != nil {
 			return
 		}
 
+		var pkt Packet
 		if pkt, err = v.DecodeMessage(m); err != nil {
 			return
 		}
 
-		if filter == nil {
-			return
+		var pktt reflect.Type
+		if pktt = reflect.TypeOf(pkt); !pktt.AssignableTo(ppktt) {
+			continue
 		}
 
-		if filter(m, pkt) {
-			return
-		}
+		// It's similar to *ppktv = pkt.
+		ppktv.Elem().Set(reflect.ValueOf(pkt))
+		break
 	}
 
 	return
