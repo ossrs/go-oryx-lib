@@ -27,7 +27,10 @@ import (
 	"encoding"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
 	"math"
+	"sync"
 )
 
 // Please read @doc amf0_spec_121207.pdf, @page 4, @section 2.1 Types Overview
@@ -90,16 +93,16 @@ func (v marker) String() string {
 		return "TypedObject"
 	case markerAvmPlusObject:
 		return "AvmPlusObject"
-	case markerForbidden, markerMovieClip, markerRecordSet:
-		fallthrough
+	case markerMovieClip:
+		return "MovieClip"
+	case markerRecordSet:
+		return "RecordSet"
 	default:
 		return "Forbidden"
 	}
 }
 
 var errDataNotEnough = errors.New("data is not enough")
-var errMarkerIllegal = errors.New("marker is illegal")
-var errNotSupported = errors.New("object is not supported")
 
 // All AMF0 things.
 type Amf0 interface {
@@ -122,44 +125,37 @@ func Discovery(p []byte) (a Amf0, err error) {
 
 	switch m {
 	case markerNumber:
-		return NewNumber(0), errNotSupported
+		return NewNumber(0), nil
 	case markerBoolean:
-		return nil, errNotSupported
+		return NewBoolean(false), nil
 	case markerString:
 		return NewString(""), nil
 	case markerObject:
 		return NewObject(), nil
 	case markerNull:
-		return nil, errNotSupported
+		return NewNull(), nil
 	case markerUndefined:
-		return nil, errNotSupported
+		return NewUndefined(), nil
 	case markerReference:
-		return nil, errNotSupported
 	case markerEcmaArray:
-		return nil, errNotSupported
+		return NewEcmaArray(), nil
 	case markerObjectEnd:
-		return nil, errNotSupported
+		return &objectEOF{}, nil
 	case markerStrictArray:
-		return nil, errNotSupported
+		return NewStrictArray(), nil
 	case markerDate:
-		return nil, errNotSupported
 	case markerLongString:
-		return nil, errNotSupported
 	case markerUnsupported:
-		return nil, errNotSupported
 	case markerXmlDocument:
-		return nil, errNotSupported
 	case markerTypedObject:
-		return nil, errNotSupported
 	case markerAvmPlusObject:
-		return nil, errNotSupported
 	case markerForbidden, markerMovieClip, markerRecordSet:
 		fallthrough
 	default:
-		return nil, errMarkerIllegal
+		return nil, fmt.Errorf("Marker %v is illegal", m)
 	}
 
-	return
+	return nil, fmt.Errorf("%v is not supported", m)
 }
 
 // The UTF8 string, please read @doc amf0_spec_121207.pdf, @page 3, @section 1.3.1 Strings and UTF-8
@@ -220,7 +216,7 @@ func (v *Number) UnmarshalBinary(data []byte) (err error) {
 		return errDataNotEnough
 	}
 	if m := marker(p[0]); m != markerNumber {
-		return errMarkerIllegal
+		return fmt.Errorf("Number marker %v is illegal", m)
 	}
 
 	f := binary.BigEndian.Uint64(p[1:])
@@ -259,7 +255,7 @@ func (v *String) UnmarshalBinary(data []byte) (err error) {
 		return errDataNotEnough
 	}
 	if m := marker(p[0]); m != markerString {
-		return errMarkerIllegal
+		return fmt.Errorf("String marker %v is illegal", m)
 	}
 
 	var sv amf0UTF8
@@ -297,7 +293,7 @@ func (v *objectEOF) Size() int {
 func (v *objectEOF) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p[0] != 0 || p[1] != 0 || p[2] != 9 {
-		return errMarkerIllegal
+		return fmt.Errorf("EOF marker %v is illegal", p[0:3])
 	}
 	return
 }
@@ -306,82 +302,107 @@ func (v *objectEOF) MarshalBinary() (data []byte, err error) {
 	return []byte{0, 0, 9}, nil
 }
 
-// The AMF0 object, please read @doc amf0_spec_121207.pdf, @page 5, @section 2.5 Object Type
-type Object struct {
-	m          marker
-	properties map[amf0UTF8]Amf0
-	eof        objectEOF
+// Use array for object and ecma array, to keep the original order.
+type property struct {
+	key   amf0UTF8
+	value Amf0
 }
 
-func NewObject() *Object {
-	return &Object{
-		m:          markerObject,
-		properties: map[amf0UTF8]Amf0{},
-	}
+// The object-like AMF0 structure, like object and ecma array and strict array.
+type objectBase struct {
+	properties []*property
+	lock       sync.Mutex
 }
 
-func (v *Object) Set(key string, value Amf0) {
-	v.properties[amf0UTF8(key)] = value
-}
+func (v *objectBase) Size() int {
+	v.lock.Lock()
+	defer v.lock.Unlock()
 
-func (v *Object) amf0Marker() marker {
-	return v.m
-}
+	var size int
 
-func (v *Object) Size() int {
-	size := int(1) + v.eof.Size()
-	for key, value := range v.properties {
+	for _, p := range v.properties {
+		key, value := p.key, p.value
 		size += key.Size() + value.Size()
 	}
+
 	return size
 }
 
-func (v *Object) UnmarshalBinary(data []byte) (err error) {
-	var p []byte
-	if p = data; len(p) < 1 {
-		return errDataNotEnough
-	}
-	if m := marker(p[0]); m != markerObject {
-		return errMarkerIllegal
+func (v *objectBase) Get(key string) Amf0 {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	for _, p := range v.properties {
+		if string(p.key) == key {
+			return p.value
+		}
 	}
 
+	return nil
+}
+
+func (v *objectBase) Set(key string, value Amf0) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	prop := &property{key: amf0UTF8(key), value: value}
+
+	var ok bool
+	for i, p := range v.properties {
+		if string(p.key) == key {
+			v.properties[i] = prop
+			ok = true
+		}
+	}
+
+	if !ok {
+		v.properties = append(v.properties, prop)
+	}
+}
+
+func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 	for len(p) > 0 {
 		var u amf0UTF8
 		if err = u.UnmarshalBinary(p); err != nil {
-			return
+			return fmt.Errorf("Unmarhsal prop name, %v", err)
 		}
 		p = p[u.Size():]
 
 		var a Amf0
 		if a, err = Discovery(p); err != nil {
-			return
+			return fmt.Errorf("Discover prop %v, %v", u, err)
 		}
 
 		// For object EOF, we should only consume total 3bytes.
-		if u.Size() == 0 && a.amf0Marker() == markerObjectEnd {
+		if eof && u.Size() == 2 && a.amf0Marker() == markerObjectEnd {
 			p = p[1:]
 			break
 		}
 
 		// For object property, consume the whole bytes.
 		if err = a.UnmarshalBinary(p); err != nil {
-			return
+			return fmt.Errorf("Unmarshal prop %v, %v", u, err)
 		}
-		v.properties[u] = a
+
+		v.Set(string(u), a)
 		p = p[a.Size():]
+
+		if maxElems > 0 && len(v.properties) >= maxElems {
+			break
+		}
 	}
+
 	return
 }
 
-func (v *Object) MarshalBinary() (data []byte, err error) {
-	b := bytes.Buffer{}
-
-	if err = b.WriteByte(byte(markerObject)); err != nil {
-		return
-	}
+func (v *objectBase) marshal(b io.Writer) (err error) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
 
 	var pb []byte
-	for key, value := range v.properties {
+	for _, p := range v.properties {
+		key, value := p.key, p.value
+
 		if pb, err = key.MarshalBinary(); err != nil {
 			return
 		}
@@ -397,6 +418,58 @@ func (v *Object) MarshalBinary() (data []byte, err error) {
 		}
 	}
 
+	return
+}
+
+// The AMF0 object, please read @doc amf0_spec_121207.pdf, @page 5, @section 2.5 Object Type
+type Object struct {
+	objectBase
+	eof objectEOF
+}
+
+func NewObject() *Object {
+	v := &Object{}
+	v.properties = []*property{}
+	return v
+}
+
+func (v *Object) amf0Marker() marker {
+	return markerObject
+}
+
+func (v *Object) Size() int {
+	return int(1) + v.eof.Size() + v.objectBase.Size()
+}
+
+func (v *Object) UnmarshalBinary(data []byte) (err error) {
+	var p []byte
+	if p = data; len(p) < 1 {
+		return errDataNotEnough
+	}
+	if m := marker(p[0]); m != markerObject {
+		return fmt.Errorf("Object marker %v is illegal", m)
+	}
+	p = p[1:]
+
+	if err = v.unmarshal(p, true, -1); err != nil {
+		return fmt.Errorf("Object %v", err)
+	}
+
+	return
+}
+
+func (v *Object) MarshalBinary() (data []byte, err error) {
+	b := bytes.Buffer{}
+
+	if err = b.WriteByte(byte(markerObject)); err != nil {
+		return
+	}
+
+	if err = v.marshal(&b); err != nil {
+		return nil, fmt.Errorf("Object %v", err)
+	}
+
+	var pb []byte
 	if pb, err = v.eof.MarshalBinary(); err != nil {
 		return
 	}
@@ -405,4 +478,213 @@ func (v *Object) MarshalBinary() (data []byte, err error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+// The AMF0 ecma array, please read @doc amf0_spec_121207.pdf, @page 6, @section 2.10 ECMA Array Type
+type EcmaArray struct {
+	objectBase
+	count uint32
+	eof   objectEOF
+}
+
+func NewEcmaArray() *EcmaArray {
+	v := &EcmaArray{}
+	v.properties = []*property{}
+	return v
+}
+
+func (v *EcmaArray) amf0Marker() marker {
+	return markerEcmaArray
+}
+
+func (v *EcmaArray) Size() int {
+	return int(1) + 4 + v.eof.Size() + v.objectBase.Size()
+}
+
+func (v *EcmaArray) UnmarshalBinary(data []byte) (err error) {
+	var p []byte
+	if p = data; len(p) < 5 {
+		return errDataNotEnough
+	}
+	if m := marker(p[0]); m != markerEcmaArray {
+		return fmt.Errorf("EcmaArray marker %v is illegal", m)
+	}
+	v.count = binary.BigEndian.Uint32(p[1:])
+	p = p[5:]
+
+	if err = v.unmarshal(p, true, -1); err != nil {
+		return fmt.Errorf("EcmaArray %v", err)
+	}
+	return
+}
+
+func (v *EcmaArray) MarshalBinary() (data []byte, err error) {
+	b := bytes.Buffer{}
+
+	if err = b.WriteByte(byte(markerEcmaArray)); err != nil {
+		return
+	}
+
+	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
+		return
+	}
+
+	if err = v.marshal(&b); err != nil {
+		return nil, fmt.Errorf("EcmaArray %v", err)
+	}
+
+	var pb []byte
+	if pb, err = v.eof.MarshalBinary(); err != nil {
+		return
+	}
+	if _, err = b.Write(pb); err != nil {
+		return
+	}
+
+	return b.Bytes(), nil
+}
+
+// The AMF0 strict array, please read @doc amf0_spec_121207.pdf, @page 7, @section 2.12 Strict Array Type
+type StrictArray struct {
+	objectBase
+	count uint32
+}
+
+func NewStrictArray() *StrictArray {
+	v := &StrictArray{}
+	v.properties = []*property{}
+	return v
+}
+
+func (v *StrictArray) amf0Marker() marker {
+	return markerStrictArray
+}
+
+func (v *StrictArray) Size() int {
+	return int(1) + 4 + v.objectBase.Size()
+}
+
+func (v *StrictArray) UnmarshalBinary(data []byte) (err error) {
+	var p []byte
+	if p = data; len(p) < 5 {
+		return errDataNotEnough
+	}
+	if m := marker(p[0]); m != markerStrictArray {
+		return fmt.Errorf("StrictArray marker %v is illegal", m)
+	}
+	v.count = binary.BigEndian.Uint32(p[1:])
+	p = p[5:]
+
+	if err = v.unmarshal(p, false, int(v.count)); err != nil {
+		return fmt.Errorf("StrictArray %v", err)
+	}
+	return
+}
+
+func (v *StrictArray) MarshalBinary() (data []byte, err error) {
+	b := bytes.Buffer{}
+
+	if err = b.WriteByte(byte(markerStrictArray)); err != nil {
+		return
+	}
+
+	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
+		return
+	}
+
+	if err = v.marshal(&b); err != nil {
+		return nil, fmt.Errorf("StrictArray %v", err)
+	}
+
+	return b.Bytes(), nil
+}
+
+// The single marker object, for all AMF0 which only has the marker, like null and undefined.
+type singleMarkerObject struct {
+	target marker
+}
+
+func (v *singleMarkerObject) amf0Marker() marker {
+	return v.target
+}
+
+func (v *singleMarkerObject) Size() int {
+	return int(1)
+}
+
+func (v *singleMarkerObject) UnmarshalBinary(data []byte) (err error) {
+	var p []byte
+	if p = data; len(p) < 1 {
+		return errDataNotEnough
+	}
+	if m := marker(p[0]); m != v.target {
+		return fmt.Errorf("%v marker %v is illegal", v.target, m)
+	}
+	return
+}
+
+func (v *singleMarkerObject) MarshalBinary() (data []byte, err error) {
+	return []byte{byte(v.target)}, nil
+}
+
+// The AMF0 null, please read @doc amf0_spec_121207.pdf, @page 6, @section 2.7 null Type
+type null struct {
+	singleMarkerObject
+}
+
+func NewNull() Amf0 {
+	v := null{}
+	v.singleMarkerObject.target = markerNull
+	return &v
+}
+
+// The AMF0 undefined, please read @doc amf0_spec_121207.pdf, @page 6, @section 2.8 undefined Type
+type undefined struct {
+	singleMarkerObject
+}
+
+func NewUndefined() Amf0 {
+	v := undefined{}
+	v.singleMarkerObject.target = markerUndefined
+	return &v
+}
+
+// The AMF0 boolean, please read @doc amf0_spec_121207.pdf, @page 5, @section 2.3 Boolean Type
+type Boolean bool
+
+func NewBoolean(b bool) Amf0 {
+	v := Boolean(b)
+	return &v
+}
+
+func (v *Boolean) amf0Marker() marker {
+	return markerBoolean
+}
+
+func (v *Boolean) Size() int {
+	return int(2)
+}
+
+func (v *Boolean) UnmarshalBinary(data []byte) (err error) {
+	var p []byte
+	if p = data; len(p) < 2 {
+		return errDataNotEnough
+	}
+	if m := marker(p[0]); m != markerBoolean {
+		return fmt.Errorf("BOOL marker %v is illegal", m)
+	}
+	if p[1] == 0 {
+		*v = false
+	} else {
+		*v = true
+	}
+	return
+}
+
+func (v *Boolean) MarshalBinary() (data []byte, err error) {
+	var b byte
+	if *v {
+		b = 1
+	}
+	return []byte{byte(markerBoolean), b}, nil
 }

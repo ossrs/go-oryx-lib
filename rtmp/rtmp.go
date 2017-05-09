@@ -23,14 +23,19 @@
 package rtmp
 
 import (
+	"bufio"
 	"bytes"
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/ossrs/go-oryx-lib/amf0"
 	"io"
 	"math/rand"
+	"sync"
 )
+
+var errDataNotEnough = errors.New("data is not enough")
 
 // The handshake implements the RTMP handshake protocol.
 type Handshake struct {
@@ -118,6 +123,9 @@ func (v *Handshake) ReadC2S2(r io.Reader) (c2 []byte, err error) {
 // 0xffffff and the extended timestamp MUST be sent.
 const extendedTimestamp = uint64(0xffffff)
 
+// The default chunk size of RTMP is 128 bytes.
+const defaultChunkSize = 128
+
 // The intput or output settings for RTMP protocol.
 type settings struct {
 	chunkSize uint32
@@ -125,52 +133,175 @@ type settings struct {
 
 func newSettings() *settings {
 	return &settings{
-		chunkSize: 128,
+		chunkSize: defaultChunkSize,
 	}
 }
 
 // The chunk stream which transport a message once.
 type chunkStream struct {
-	format            FormatType
-	cid               ChunkID
-	header            *Message
+	format            formatType
+	cid               chunkID
+	header            MessageHeader
 	message           *Message
 	count             uint64
 	extendedTimestamp bool
 }
 
 func newChunkStream() *chunkStream {
-	return &chunkStream{
-		header: NewMessage(),
-	}
+	return &chunkStream{}
 }
 
 // The protocol implements the RTMP command and chunk stack.
 type Protocol struct {
+	r     *bufio.Reader
+	w     *bufio.Writer
 	input struct {
 		opt    *settings
-		chunks map[uint8]*chunkStream
+		chunks map[chunkID]*chunkStream
+
+		transactions  map[amf0.Number]amf0.String
+		ltransactions sync.Mutex
 	}
 	output struct {
 		opt *settings
 	}
 }
 
-func NewProtocol() *Protocol {
-	v := &Protocol{}
+func NewProtocol(rw io.ReadWriter) *Protocol {
+	v := &Protocol{
+		r: bufio.NewReader(rw),
+		w: bufio.NewWriter(rw),
+	}
+
 	v.input.opt = newSettings()
-	v.input.chunks = map[uint8]*chunkStream{}
+	v.input.chunks = map[chunkID]*chunkStream{}
+	v.input.transactions = map[amf0.Number]amf0.String{}
+
 	v.output.opt = newSettings()
+
 	return v
 }
 
-func (v *Protocol) ReadMessage(r io.Reader) (m *Message, err error) {
-	for m == nil {
-		var cid ChunkID
-		var format FormatType
-		if format, cid, err = v.readBasicHeader(r); err != nil {
+func (v *Protocol) ExpectPacket(filter func(*Message, Packet) bool) (m *Message, pkt Packet, err error) {
+	for {
+		if m, err = v.ReadMessage(); err != nil {
 			return
 		}
+
+		if pkt, err = v.DecodeMessage(m); err != nil {
+			return
+		}
+
+		if filter(m, pkt) {
+			return
+		}
+	}
+
+	return
+}
+
+func (v *Protocol) ExpectMessage(types ...MessageType) (m *Message, err error) {
+	for {
+		if m, err = v.ReadMessage(); err != nil {
+			return
+		}
+
+		if len(types) == 0 {
+			return
+		}
+
+		for _, t := range types {
+			if m.messageType == t {
+				return
+			}
+		}
+	}
+
+	return
+}
+
+func (v *Protocol) parseAMFObject(p []byte) (pkt Packet, err error) {
+	var commandName amf0.String
+	if err = commandName.UnmarshalBinary(p); err != nil {
+		return
+	}
+	//fmt.Println(commandName, p)
+
+	if commandName == commandResult || commandName == commandError {
+		var transactionID amf0.Number
+		if err = transactionID.UnmarshalBinary(p[commandName.Size():]); err != nil {
+			return
+		}
+
+		var requestName amf0.String
+		if err = func() error {
+			v.input.ltransactions.Lock()
+			defer v.input.ltransactions.Unlock()
+
+			var ok bool
+			if requestName, ok = v.input.transactions[transactionID]; !ok {
+				return fmt.Errorf("No matched request")
+			}
+			delete(v.input.transactions, transactionID)
+
+			return nil
+		}(); err != nil {
+			return
+		}
+
+		switch requestName {
+		case commandConnect:
+			pkt = NewConnectAppResPacket(transactionID)
+			return pkt, pkt.UnmarshalBinary(p)
+		default:
+			return nil, fmt.Errorf("No request for %v", string(requestName))
+		}
+	}
+
+	return nil, fmt.Errorf("Unknown request %v", string(commandName))
+}
+
+func (v *Protocol) DecodeMessage(m *Message) (pkt Packet, err error) {
+	p := m.payload[:]
+	if len(p) == 0 {
+		return nil, fmt.Errorf("Empty packet")
+	}
+
+	switch m.messageType {
+	case MessageTypeAMF3Command, MessageTypeAMF3Data:
+		p = p[1:]
+	}
+
+	switch m.messageType {
+	case MessageTypeSetChunkSize:
+		pkt = NewSetChunkSize()
+	case MessageTypeWindowAcknowledgementSize:
+		pkt = NewWindowAcknowledgementSize()
+	case MessageTypeSetPeerBandwidth:
+		pkt = NewSetPeerBandwidth()
+	case MessageTypeAMF0Command, MessageTypeAMF3Command, MessageTypeAMF0Data, MessageTypeAMF3Data:
+		if pkt, err = v.parseAMFObject(p); err != nil {
+			return nil, fmt.Errorf("Parse AMF %v failed, %v", m.messageType, err)
+		}
+	default:
+		return nil, fmt.Errorf("Unknown message type %v", m.messageType)
+	}
+
+	if err = pkt.UnmarshalBinary(p); err != nil {
+		return nil, fmt.Errorf("Unmarshal %v failed, %v", m.messageType, err)
+	}
+
+	return
+}
+
+func (v *Protocol) ReadMessage() (m *Message, err error) {
+	for m == nil {
+		var cid chunkID
+		var format formatType
+		if format, cid, err = v.readBasicHeader(); err != nil {
+			return
+		}
+		//fmt.Println("basic cid", cid, "fmt", format)
 
 		var ok bool
 		var chunk *chunkStream
@@ -180,11 +311,16 @@ func (v *Protocol) ReadMessage(r io.Reader) (m *Message, err error) {
 			chunk.header.betterCid = cid
 		}
 
-		if err = v.readMessageHeader(r, chunk, format); err != nil {
+		if err = v.readMessageHeader(chunk, format); err != nil {
+			return
+		}
+		//fmt.Println("message type", chunk.header.messageType, chunk.header.timestamp, chunk.header.payloadLength)
+
+		if m, err = v.readMessagePayload(chunk); err != nil {
 			return
 		}
 
-		if m, err = v.readMessagePayload(r, chunk); err != nil {
+		if err = v.onMessageArrivated(m); err != nil {
 			return
 		}
 	}
@@ -192,26 +328,27 @@ func (v *Protocol) ReadMessage(r io.Reader) (m *Message, err error) {
 	return
 }
 
-func (v *Protocol) readMessagePayload(r io.Reader, chunk *chunkStream) (m *Message, err error) {
+func (v *Protocol) readMessagePayload(chunk *chunkStream) (m *Message, err error) {
 	// Empty payload message.
-	if chunk.header.payloadLength == 0 {
+	if chunk.message.payloadLength == 0 {
 		m = chunk.message
 		chunk.message = nil
 		return
 	}
 
 	// Calculate the chunk payload size.
-	chunkedPayloadSize := int(chunk.header.payloadLength) - len(chunk.message.payload)
+	chunkedPayloadSize := int(chunk.message.payloadLength) - len(chunk.message.payload)
 	if chunkedPayloadSize > int(v.input.opt.chunkSize) {
 		chunkedPayloadSize = int(v.input.opt.chunkSize)
 	}
 
-	b := &bytes.Buffer{}
-	if _, err = io.CopyN(b, r, int64(chunkedPayloadSize)); err != nil {
+	b := make([]byte, chunkedPayloadSize)
+	if _, err = io.ReadFull(v.r, b); err != nil {
 		return
 	}
+	//fmt.Println(fmt.Sprintf("payload %v/%v bytes %v", chunk.message.payloadLength, chunkedPayloadSize, b))
 
-	chunk.message.payload = append(chunk.message.payload, b.Bytes()...)
+	chunk.message.payload = append(chunk.message.payload, b...)
 
 	// Got entire RTMP message?
 	if int(chunk.message.payloadLength) == len(chunk.message.payload) {
@@ -225,28 +362,28 @@ func (v *Protocol) readMessagePayload(r io.Reader, chunk *chunkStream) (m *Messa
 // Please read @doc rtmp_specification_1.0.pdf, @page 18, @section 6.1.2. Chunk Message Header
 // There are four different formats for the chunk message header,
 // selected by the "fmt" field in the chunk basic header.
-type FormatType uint8
+type formatType uint8
 
 const (
 	// 6.1.2.1. Type 0
 	// Chunks of Type 0 are 11 bytes long. This type MUST be used at the
 	// start of a chunk stream, and whenever the stream timestamp goes
 	// backward (e.g., because of a backward seek).
-	FormatType0 FormatType = iota
+	formatType0 formatType = iota
 	// 6.1.2.2. Type 1
 	// Chunks of Type 1 are 7 bytes long. The message stream ID is not
 	// included; this chunk takes the same stream ID as the preceding chunk.
 	// Streams with variable-sized messages (for example, many video
 	// formats) SHOULD use this format for the first chunk of each new
 	// message after the first.
-	FormatType1
+	formatType1
 	// 6.1.2.3. Type 2
 	// Chunks of Type 2 are 3 bytes long. Neither the stream ID nor the
 	// message length is included; this chunk has the same stream ID and
 	// message length as the preceding chunk. Streams with constant-sized
 	// messages (for example, some audio and data formats) SHOULD use this
 	// format for the first chunk of each message after the first.
-	FormatType2
+	formatType2
 	// 6.1.2.4. Type 3
 	// Chunks of Type 3 have no header. Stream ID, message length and
 	// timestamp delta are not present; chunks of this type take values from
@@ -261,11 +398,11 @@ const (
 	// need for a chunk of type 2 to register the delta. If Type 3 chunk
 	// follows a Type 0 chunk, then timestamp delta for this Type 3 chunk is
 	// the same as the timestamp of Type 0 chunk.
-	FormatType3
+	formatType3
 )
 
 // The message header size, index is format.
-const messageHeaderSizes = []int{11, 7, 3, 0}
+var messageHeaderSizes = []int{11, 7, 3, 0}
 
 // Parse the chunk message header.
 //   3bytes: timestamp delta,    fmt=0,1,2
@@ -277,7 +414,7 @@ const messageHeaderSizes = []int{11, 7, 3, 0}
 //   fmt=1, 0x4X
 //   fmt=2, 0x8X
 //   fmt=3, 0xCX
-func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format FormatType) (err error) {
+func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err error) {
 	// We should not assert anything about fmt, for the first packet.
 	// (when first packet, the chunk.message is nil).
 	// the fmt maybe 0/1/2/3, the FMLE will send a 0xC4 for some audio packet.
@@ -307,7 +444,7 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 
 	// But, we can ensure that when a chunk stream is fresh,
 	// the fmt must be 0, a new stream.
-	if chunk.count == 0 && format != FormatType0 {
+	if chunk.count == 0 && format != formatType0 {
 		// For librtmp, if ping, it will send a fresh stream with fmt=1,
 		// 0x42             where: fmt=1, cid=2, protocol contorl user-control message
 		// 0x00 0x00 0x00   where: timestamp=0
@@ -316,16 +453,16 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 		// 0x00 0x06            where: event Ping(0x06)
 		// 0x00 0x00 0x0d 0x0f  where: event data 4bytes ping timestamp.
 		// @see: https://github.com/ossrs/srs/issues/98
-		if chunk.cid == ChunkIDProtocolControl && format == FormatType1 {
+		if chunk.cid == chunkIDProtocolControl && format == formatType1 {
 			// We accept cid=2, fmt=1 to make librtmp happy.
 		} else {
-			return fmt.Errorf("For fresh chunk, fmt %v != %v(required), cid is %v", format, FormatType0, chunk.cid)
+			return fmt.Errorf("For fresh chunk, fmt %v != %v(required), cid is %v", format, formatType0, chunk.cid)
 		}
 	}
 
 	// When exists cache msg, means got an partial message,
 	// the fmt must not be type0 which means new message.
-	if chunk.message != nil && format == FormatType0 {
+	if chunk.message != nil && format == formatType0 {
 		return fmt.Errorf("For exists chunk, fmt is %v, cid is %v", format, chunk.cid)
 	}
 
@@ -335,8 +472,8 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 	}
 
 	// Read the message header.
-	b := &bytes.Buffer{}
-	if _, err = io.CopyN(b, r, int64(messageHeaderSizes[format])); err != nil {
+	p := make([]byte, messageHeaderSizes[format])
+	if _, err = io.ReadFull(v.r, p); err != nil {
 		return
 	}
 
@@ -350,9 +487,8 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 	//   fmt=1, 0x4X
 	//   fmt=2, 0x8X
 	//   fmt=3, 0xCX
-	if format <= FormatType2 {
-		p := b.Bytes()
-		chunk.header.timestampDelta = uint32(p[0]) | uint32(p[1])<<8 | uint32(p[2])<<16
+	if format <= formatType2 {
+		chunk.header.timestampDelta = uint32(p[0]<<16) | uint32(p[1])<<8 | uint32(p[2])
 		p = p[3:]
 
 		// fmt: 0
@@ -380,7 +516,7 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 			// MUST NOT be present. For values greater than or equal to 0xffffff
 			// the normal timestamp field MUST NOT be used and MUST be set to
 			// 0xffffff and the extended timestamp MUST be sent.
-			if format == FormatType0 {
+			if format == formatType0 {
 				// 6.1.2.1. Type 0
 				// For a type-0 chunk, the absolute timestamp of the message is sent
 				// here.
@@ -394,8 +530,8 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 			}
 		}
 
-		if format <= FormatType1 {
-			payloadLength := uint32(p[0]) | uint32(p[1])<<8 | uint32(p[2])<<16
+		if format <= formatType1 {
+			payloadLength := uint32(p[0]<<16) | uint32(p[1])<<8 | uint32(p[2])
 			p = p[3:]
 
 			// For a message, if msg exists in cache, the size must not changed.
@@ -410,8 +546,8 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 			chunk.header.messageType = MessageType(p[0])
 			p = p[1:]
 
-			if format == FormatType0 {
-				chunk.header.streamID = uint32(p[0])<<24 | uint32(p[1])<<16 | uint32(p[2])<<8 | uint32(p[3])
+			if format == formatType0 {
+				chunk.header.streamID = uint32(p[0]) | uint32(p[1])<<8 | uint32(p[2])<<16 | uint32(p[3])<<24
 				p = p[4:]
 			}
 		}
@@ -425,7 +561,7 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 	// Read extended-timestamp
 	if chunk.extendedTimestamp {
 		var timestamp uint32
-		if err = binary.Read(r, binary.BigEndian, &timestamp); err != nil {
+		if err = binary.Read(v.r, binary.BigEndian, &timestamp); err != nil {
 			return
 		}
 
@@ -461,12 +597,7 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 	chunk.header.timestamp &= 0x7fffffff
 
 	// Copy header to msg
-	chunk.message.timestamp = chunk.header.timestamp
-	chunk.message.timestampDelta = chunk.header.timestampDelta
-	chunk.message.betterCid = chunk.header.betterCid
-	chunk.message.messageType = chunk.header.messageType
-	chunk.message.payloadLength = chunk.header.payloadLength
-	chunk.message.streamID = chunk.header.streamID
+	chunk.message.MessageHeader = chunk.header
 
 	// Increase the msg count, the chunk stream can accept fmt=1/2/3 message now.
 	chunk.count++
@@ -516,37 +647,37 @@ func (v *Protocol) readMessageHeader(r io.Reader, chunk *chunkStream, format For
 //
 // Chunk stream IDs with values 64-319 could be represented by both 2-
 // byte version and 3-byte version of this field.
-func (v *Protocol) readBasicHeader(r io.Reader) (format FormatType, cid ChunkID, err error) {
+func (v *Protocol) readBasicHeader() (format formatType, cid chunkID, err error) {
 	// 2-63, 1B chunk header
 	var t uint8
-	if err = binary.Read(r, binary.BigEndian, &t); err != nil {
+	if err = binary.Read(v.r, binary.BigEndian, &t); err != nil {
 		return
 	}
-	cid = ChunkID(t & 0x3f)
-	format = FormatType((t >> 6) & 0x03)
+	cid = chunkID(t & 0x3f)
+	format = formatType((t >> 6) & 0x03)
 
 	if cid > 1 {
 		return
 	}
 
 	// 64-319, 2B chunk header
-	if err = binary.Read(r, binary.BigEndian, &t); err != nil {
+	if err = binary.Read(v.r, binary.BigEndian, &t); err != nil {
 		return
 	}
-	cid = ChunkID(64 + uint32(t))
+	cid = chunkID(64 + uint32(t))
 
 	// 64-65599, 3B chunk header
 	if cid == 1 {
-		if err = binary.Read(r, binary.BigEndian, &t); err != nil {
+		if err = binary.Read(v.r, binary.BigEndian, &t); err != nil {
 			return
 		}
-		cid += ChunkID(uint32(t) * 256)
+		cid += chunkID(uint32(t) * 256)
 	}
 
 	return
 }
 
-func (v *Protocol) WritePacket(w io.Writer, pkt Packet, streamID int) (err error) {
+func (v *Protocol) WritePacket(pkt Packet, streamID int) (err error) {
 	m := NewMessage()
 
 	if m.payload, err = pkt.MarshalBinary(); err != nil {
@@ -558,7 +689,7 @@ func (v *Protocol) WritePacket(w io.Writer, pkt Packet, streamID int) (err error
 	m.streamID = uint32(streamID)
 	m.betterCid = pkt.BetterCid()
 
-	if err = v.writeMessage(w, m); err != nil {
+	if err = v.writeMessage(m); err != nil {
 		return
 	}
 
@@ -570,12 +701,34 @@ func (v *Protocol) WritePacket(w io.Writer, pkt Packet, streamID int) (err error
 }
 
 func (v *Protocol) onPacketWriten(m *Message, pkt Packet) (err error) {
-	// TODO: FIXME: Implements it.
+	switch pkt := pkt.(type) {
+	case *ConnectAppPacket:
+		v.input.ltransactions.Lock()
+		defer v.input.ltransactions.Unlock()
+
+		v.input.transactions[pkt.TransactionID] = pkt.CommandName
+	}
 	return
 }
 
-func (v *Protocol) writeMessage(w io.Writer, m *Message) (err error) {
-	// TODO: FIXME: Use writev to write for high performance.
+func (v *Protocol) onMessageArrivated(m *Message) (err error) {
+	var pkt Packet
+	switch m.messageType {
+	case MessageTypeSetChunkSize, MessageTypeUserControl, MessageTypeWindowAcknowledgementSize:
+		if pkt, err = v.DecodeMessage(m); err != nil {
+			return
+		}
+	}
+
+	switch pkt := pkt.(type) {
+	case *SetChunkSize:
+		v.input.opt.chunkSize = pkt.ChunkSize
+	}
+
+	return
+}
+
+func (v *Protocol) writeMessage(m *Message) (err error) {
 	var c0h, c3h []byte
 	if c0h, err = m.generateC0Header(); err != nil {
 		return
@@ -593,7 +746,7 @@ func (v *Protocol) writeMessage(w io.Writer, m *Message) (err error) {
 			h = c3h
 		}
 
-		if _, err = io.Copy(w, bytes.NewReader(h)); err != nil {
+		if _, err = io.Copy(v.w, bytes.NewReader(h)); err != nil {
 			return
 		}
 
@@ -602,10 +755,15 @@ func (v *Protocol) writeMessage(w io.Writer, m *Message) (err error) {
 			size = int(v.output.opt.chunkSize)
 		}
 
-		if _, err = io.Copy(w, bytes.NewReader(p[:size])); err != nil {
+		if _, err = io.Copy(v.w, bytes.NewReader(p[:size])); err != nil {
 			return
 		}
 		p = p[size:]
+	}
+
+	// TODO: FIXME: Use writev to write for high performance.
+	if err = v.w.Flush(); err != nil {
+		return
 	}
 
 	return
@@ -624,13 +782,13 @@ const (
 	// reserved for usage with RTM Chunk Stream protocol. Protocol messages
 	// with IDs 3-6 are reserved for usage of RTMP. Protocol message with ID
 	// 7 is used between edge server and origin server.
-	MessageTypeSetChunkSize MessageType = 0x01 + iota
-	MessageTypeAbortMessage
-	MessageTypeAcknowledgement
-	MessageTypeUserControlMessage
-	MessageTypeWindowAcknowledgementSize
-	MessageTypeSetPeerBandwidth
-	MessageTypeEdgeAndOriginServerCommand
+	MessageTypeSetChunkSize               MessageType = 0x01 + iota
+	MessageTypeAbort                                  // 0x02
+	MessageTypeAcknowledgement                        // 0x03
+	MessageTypeUserControl                            // 0x04
+	MessageTypeWindowAcknowledgementSize              // 0x05
+	MessageTypeSetPeerBandwidth                       // 0x06
+	MessageTypeEdgeAndOriginServerCommand             // 0x07
 	// Please read @doc rtmp_specification_1.0.pdf, @page 38, @section 3. Types of messages
 	// The server and the client send messages over the network to
 	// communicate with each other. The messages can be of any type which
@@ -647,7 +805,7 @@ const (
 	// These messages are large and can delay the sending of other type of
 	// messages. To avoid such a situation, the video message is assigned
 	// the lowest priority.
-	MessageTypeVideo
+	MessageTypeVideo // 0x09
 	// Please read @doc rtmp_specification_1.0.pdf, @page 38, @section 3.1. Command message
 	// Command messages carry the AMF-encoded commands between the client
 	// and the server. These messages have been assigned message type value
@@ -660,21 +818,20 @@ const (
 	// contains related parameters. A client or a server can request Remote
 	// Procedure Calls (RPC) over streams that are communicated using the
 	// command messages to the peer.
-	MessageTypeAMF3CommandMessage MessageType = 17 // 0x11
-	MessageTypeAMF0CommandMessage MessageType = 20 // 0x14
+	MessageTypeAMF3Command MessageType = 17 // 0x11
+	MessageTypeAMF0Command MessageType = 20 // 0x14
 	// Please read @doc rtmp_specification_1.0.pdf, @page 38, @section 3.2. Data message
 	// The client or the server sends this message to send Metadata or any
 	// user data to the peer. Metadata includes details about the
 	// data(audio, video etc.) like creation time, duration, theme and so
 	// on. These messages have been assigned message type value of 18 for
 	// AMF0 and message type value of 15 for AMF3.
-	MessageTypeAMF0DataMessage MessageType = 18 // 0x12
-	MessageTypeAMF3DataMessage MessageType = 15 // 0x0f
+	MessageTypeAMF0Data MessageType = 18 // 0x12
+	MessageTypeAMF3Data MessageType = 15 // 0x0f
 )
 
-// The RTMP message, transport over chunk stream in RTMP.
-// Please read the cs id of @doc rtmp_specification_1.0.pdf, @page 30, @section 4.1. Message Header
-type Message struct {
+// The header of message.
+type MessageHeader struct {
 	// 3bytes.
 	// Three-byte field that contains a timestamp delta of the message.
 	// @remark, only used for decoding message from chunk stream.
@@ -693,12 +850,18 @@ type Message struct {
 	streamID uint32
 
 	// The chunk stream id over which transport.
-	betterCid ChunkID
+	betterCid chunkID
 
 	// Four-byte field that contains a timestamp of the message.
 	// The 4 bytes are packed in the big-endian order.
 	// @remark, we use 64bits for large time for jitter detect and for large tbn like HLS.
 	timestamp uint64
+}
+
+// The RTMP message, transport over chunk stream in RTMP.
+// Please read the cs id of @doc rtmp_specification_1.0.pdf, @page 30, @section 4.1. Message Header
+type Message struct {
+	MessageHeader
 
 	// The payload which carries the RTMP packet.
 	payload []byte
@@ -782,34 +945,34 @@ func (v *Message) generateC0Header() ([]byte, error) {
 }
 
 // Please read the cs id of @doc rtmp_specification_1.0.pdf, @page 17, @section 6.1.1. Chunk Basic Header
-type ChunkID uint32
+type chunkID uint32
 
 const (
-	ChunkIDProtocolControl ChunkID = 0x02 + iota
-	ChunkIDOverConnection
-	ChunkIDOverConnection2
-	ChunkIDOverStream
-	ChunkIDOverStream2
-	ChunkIDVideo
-	ChunkIDAudio
+	chunkIDProtocolControl chunkID = 0x02 + iota
+	chunkIDOverConnection
+	chunkIDOverConnection2
+	chunkIDOverStream
+	chunkIDOverStream2
+	chunkIDVideo
+	chunkIDAudio
 )
 
 // The Command Name of message.
 const (
-	CommandConnect          amf0.String = amf0.String("connect")
-	CommandCreateStream     amf0.String = amf0.String("createStream")
-	CommandCloseStream      amf0.String = amf0.String("closeStream")
-	CommandPlay             amf0.String = amf0.String("play")
-	CommandPause            amf0.String = amf0.String("pause")
-	CommandOnBWDone         amf0.String = amf0.String("onBWDone")
-	CommandOnStatus         amf0.String = amf0.String("onStatus")
-	CommandResult           amf0.String = amf0.String("_result")
-	CommandError            amf0.String = amf0.String("_error")
-	CommandReleaseStream    amf0.String = amf0.String("releaseStream")
-	CommandFCPublish        amf0.String = amf0.String("FCPublish")
-	CommandFCUnpublish      amf0.String = amf0.String("FCUnpublish")
-	CommandPublish          amf0.String = amf0.String("publish")
-	CommandRtmpSampleAccess amf0.String = amf0.String("|RtmpSampleAccess")
+	commandConnect          amf0.String = amf0.String("connect")
+	commandCreateStream     amf0.String = amf0.String("createStream")
+	commandCloseStream      amf0.String = amf0.String("closeStream")
+	commandPlay             amf0.String = amf0.String("play")
+	commandPause            amf0.String = amf0.String("pause")
+	commandOnBWDone         amf0.String = amf0.String("onBWDone")
+	commandOnStatus         amf0.String = amf0.String("onStatus")
+	commandResult           amf0.String = amf0.String("_result")
+	commandError            amf0.String = amf0.String("_error")
+	commandReleaseStream    amf0.String = amf0.String("releaseStream")
+	commandFCPublish        amf0.String = amf0.String("FCPublish")
+	commandFCUnpublish      amf0.String = amf0.String("FCUnpublish")
+	commandPublish          amf0.String = amf0.String("publish")
+	commandRtmpSampleAccess amf0.String = amf0.String("|RtmpSampleAccess")
 )
 
 // The RTMP packet, transport as payload of RTMP message.
@@ -820,41 +983,27 @@ type Packet interface {
 	encoding.BinaryMarshaler
 
 	// RTMP protocol fields for each packet.
-	BetterCid() ChunkID
+	BetterCid() chunkID
 	Type() MessageType
 }
 
-// Please read @doc rtmp_specification_1.0.pdf, @page 45, @section 4.1.1. connect
-// The client sends the connect command to the server to request
-// connection to a server application instance.
-type ConnectAppPacket struct {
-	// Name of the command. Set to "connect".
-	CommandName amf0.String
-	// Always set to 1.
+// A Call packet, both object and args are AMF0 objects.
+type objectCallPacket struct {
+	CommandName   amf0.String
 	TransactionID amf0.Number
-	// Command information object which has the name-value pairs.
 	CommandObject *amf0.Object
-	// Any optional information
-	Args *amf0.Object
+	Args          *amf0.Object
 }
 
-func NewConnectAppPacket() *ConnectAppPacket {
-	return &ConnectAppPacket{
-		CommandName:   CommandConnect,
-		CommandObject: amf0.NewObject(),
-		TransactionID: amf0.Number(1.0),
-	}
+func (v *objectCallPacket) BetterCid() chunkID {
+	return chunkIDOverConnection
 }
 
-func (v *ConnectAppPacket) BetterCid() ChunkID {
-	return ChunkIDOverConnection
+func (v *objectCallPacket) Type() MessageType {
+	return MessageTypeAMF0Command
 }
 
-func (v *ConnectAppPacket) Type() MessageType {
-	return MessageTypeAMF0CommandMessage
-}
-
-func (v *ConnectAppPacket) Size() int {
+func (v *objectCallPacket) Size() int {
 	size := v.CommandName.Size() + v.TransactionID.Size() + v.CommandObject.Size()
 	if v.Args != nil {
 		size += v.Args.Size()
@@ -862,26 +1011,21 @@ func (v *ConnectAppPacket) Size() int {
 	return size
 }
 
-func (v *ConnectAppPacket) UnmarshalBinary(data []byte) (err error) {
+func (v *objectCallPacket) UnmarshalBinary(data []byte) (err error) {
 	p := data
+
 	if err = v.CommandName.UnmarshalBinary(p); err != nil {
 		return
-	}
-	if v.CommandName != CommandConnect {
-		return fmt.Errorf("Invalid command name %v", string(v.CommandName))
 	}
 	p = p[v.CommandName.Size():]
 
 	if err = v.TransactionID.UnmarshalBinary(p); err != nil {
 		return
 	}
-	if v.TransactionID != 1.0 {
-		return fmt.Errorf("Invalid transaction ID %v", float64(v.TransactionID))
-	}
 	p = p[v.TransactionID.Size():]
 
 	if err = v.CommandObject.UnmarshalBinary(p); err != nil {
-		return
+		return fmt.Errorf("Command %v", err)
 	}
 	p = p[v.CommandObject.Size():]
 
@@ -891,13 +1035,13 @@ func (v *ConnectAppPacket) UnmarshalBinary(data []byte) (err error) {
 
 	v.Args = amf0.NewObject()
 	if err = v.Args.UnmarshalBinary(p); err != nil {
-		return
+		return fmt.Errorf("Args %v", err)
 	}
 
 	return
 }
 
-func (v *ConnectAppPacket) MarshalBinary() (data []byte, err error) {
+func (v *objectCallPacket) MarshalBinary() (data []byte, err error) {
 	var pb []byte
 	if pb, err = v.CommandName.MarshalBinary(); err != nil {
 		return
@@ -920,6 +1064,195 @@ func (v *ConnectAppPacket) MarshalBinary() (data []byte, err error) {
 		}
 		data = append(data, pb...)
 	}
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 45, @section 4.1.1. connect
+// The client sends the connect command to the server to request
+// connection to a server application instance.
+type ConnectAppPacket struct {
+	objectCallPacket
+}
+
+func NewConnectAppPacket() *ConnectAppPacket {
+	v := &ConnectAppPacket{}
+	v.CommandName = commandConnect
+	v.CommandObject = amf0.NewObject()
+	v.TransactionID = amf0.Number(1.0)
+	return v
+}
+
+func (v *ConnectAppPacket) UnmarshalBinary(data []byte) (err error) {
+	if err = v.objectCallPacket.UnmarshalBinary(data); err != nil {
+		return
+	}
+
+	if v.CommandName != commandConnect {
+		return fmt.Errorf("Invalid command name %v", string(v.CommandName))
+	}
+
+	if v.TransactionID != 1.0 {
+		return fmt.Errorf("Invalid transaction ID %v", float64(v.TransactionID))
+	}
+
+	return
+}
+
+// The response for ConnectAppPacket.
+type ConnectAppResPacket struct {
+	objectCallPacket
+}
+
+func NewConnectAppResPacket(tid amf0.Number) *ConnectAppResPacket {
+	v := &ConnectAppResPacket{}
+	v.CommandName = commandResult
+	v.CommandObject = amf0.NewObject()
+	v.TransactionID = tid
+	return v
+}
+
+func (v *ConnectAppResPacket) UnmarshalBinary(data []byte) (err error) {
+	if err = v.objectCallPacket.UnmarshalBinary(data); err != nil {
+		return
+	}
+
+	if v.CommandName != commandResult {
+		return fmt.Errorf("Invalid command name %v", string(v.CommandName))
+	}
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 31, @section 5.1. Set Chunk Size
+// Protocol control message 1, Set Chunk Size, is used to notify the
+// peer about the new maximum chunk size.
+type SetChunkSize struct {
+	ChunkSize uint32
+}
+
+func NewSetChunkSize() *SetChunkSize {
+	return &SetChunkSize{
+		ChunkSize: defaultChunkSize,
+	}
+}
+
+func (v *SetChunkSize) BetterCid() chunkID {
+	return chunkIDProtocolControl
+}
+
+func (v *SetChunkSize) Type() MessageType {
+	return MessageTypeSetChunkSize
+}
+
+func (v *SetChunkSize) Size() int {
+	return 4
+}
+
+func (v *SetChunkSize) UnmarshalBinary(data []byte) (err error) {
+	if len(data) < 4 {
+		return errDataNotEnough
+	}
+	v.ChunkSize = binary.BigEndian.Uint32(data)
+
+	return
+}
+
+func (v *SetChunkSize) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, 4)
+	binary.BigEndian.PutUint32(data, v.ChunkSize)
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 33, @section 5.5. Window Acknowledgement Size (5)
+// The client or the server sends this message to inform the peer which
+// window size to use when sending acknowledgment.
+type WindowAcknowledgementSize struct {
+	AckSize uint32
+}
+
+func NewWindowAcknowledgementSize() *WindowAcknowledgementSize {
+	return &WindowAcknowledgementSize{}
+}
+
+func (v *WindowAcknowledgementSize) BetterCid() chunkID {
+	return chunkIDProtocolControl
+}
+
+func (v *WindowAcknowledgementSize) Type() MessageType {
+	return MessageTypeWindowAcknowledgementSize
+}
+
+func (v *WindowAcknowledgementSize) Size() int {
+	return 4
+}
+
+func (v *WindowAcknowledgementSize) UnmarshalBinary(data []byte) (err error) {
+	if len(data) < 4 {
+		return errDataNotEnough
+	}
+	v.AckSize = binary.BigEndian.Uint32(data)
+
+	return
+}
+
+func (v *WindowAcknowledgementSize) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, 4)
+	binary.BigEndian.PutUint32(data, v.AckSize)
+
+	return
+}
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 33, @section 5.6. Set Peer Bandwidth (6)
+// The sender can mark this message hard (0), soft (1), or dynamic (2)
+// using the Limit type field.
+type LimitType uint8
+
+const (
+	LimitTypeHard LimitType = iota
+	LimitTypeSoft
+	LimitTypeDynamic
+)
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 33, @section 5.6. Set Peer Bandwidth (6)
+// The client or the server sends this message to update the output
+// bandwidth of the peer.
+type SetPeerBandwidth struct {
+	Bandwidth uint32
+	LimitType LimitType
+}
+
+func NewSetPeerBandwidth() *SetPeerBandwidth {
+	return &SetPeerBandwidth{}
+}
+
+func (v *SetPeerBandwidth) BetterCid() chunkID {
+	return chunkIDProtocolControl
+}
+
+func (v *SetPeerBandwidth) Type() MessageType {
+	return MessageTypeSetPeerBandwidth
+}
+
+func (v *SetPeerBandwidth) Size() int {
+	return 4 + 1
+}
+
+func (v *SetPeerBandwidth) UnmarshalBinary(data []byte) (err error) {
+	if len(data) < 5 {
+		return errDataNotEnough
+	}
+	v.Bandwidth = binary.BigEndian.Uint32(data)
+	v.LimitType = LimitType(data[4])
+
+	return
+}
+
+func (v *SetPeerBandwidth) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, 5)
+	binary.BigEndian.PutUint32(data, v.Bandwidth)
+	data[4] = byte(v.LimitType)
 
 	return
 }
