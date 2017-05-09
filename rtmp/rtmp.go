@@ -141,7 +141,7 @@ func newSettings() *settings {
 type chunkStream struct {
 	format            formatType
 	cid               chunkID
-	header            MessageHeader
+	header            messageHeader
 	message           *Message
 	count             uint64
 	extendedTimestamp bool
@@ -215,7 +215,7 @@ func (v *Protocol) ExpectMessage(types ...MessageType) (m *Message, err error) {
 		}
 
 		for _, t := range types {
-			if m.messageType == t {
+			if m.MessageType == t {
 				return
 			}
 		}
@@ -272,17 +272,17 @@ func (v *Protocol) parseAMFObject(p []byte) (pkt Packet, err error) {
 }
 
 func (v *Protocol) DecodeMessage(m *Message) (pkt Packet, err error) {
-	p := m.payload[:]
+	p := m.Payload[:]
 	if len(p) == 0 {
 		return nil, fmt.Errorf("Empty packet")
 	}
 
-	switch m.messageType {
+	switch m.MessageType {
 	case MessageTypeAMF3Command, MessageTypeAMF3Data:
 		p = p[1:]
 	}
 
-	switch m.messageType {
+	switch m.MessageType {
 	case MessageTypeSetChunkSize:
 		pkt = NewSetChunkSize()
 	case MessageTypeWindowAcknowledgementSize:
@@ -291,14 +291,14 @@ func (v *Protocol) DecodeMessage(m *Message) (pkt Packet, err error) {
 		pkt = NewSetPeerBandwidth()
 	case MessageTypeAMF0Command, MessageTypeAMF3Command, MessageTypeAMF0Data, MessageTypeAMF3Data:
 		if pkt, err = v.parseAMFObject(p); err != nil {
-			return nil, fmt.Errorf("Parse AMF %v failed, %v", m.messageType, err)
+			return nil, fmt.Errorf("Parse AMF %v failed, %v", m.MessageType, err)
 		}
 	default:
-		return nil, fmt.Errorf("Unknown message type %v", m.messageType)
+		return nil, fmt.Errorf("Unknown message type %v", m.MessageType)
 	}
 
 	if err = pkt.UnmarshalBinary(p); err != nil {
-		return nil, fmt.Errorf("Unmarshal %v failed, %v", m.messageType, err)
+		return nil, fmt.Errorf("Unmarshal %v failed, %v", m.MessageType, err)
 	}
 
 	return
@@ -347,7 +347,7 @@ func (v *Protocol) readMessagePayload(chunk *chunkStream) (m *Message, err error
 	}
 
 	// Calculate the chunk payload size.
-	chunkedPayloadSize := int(chunk.message.payloadLength) - len(chunk.message.payload)
+	chunkedPayloadSize := int(chunk.message.payloadLength) - len(chunk.message.Payload)
 	if chunkedPayloadSize > int(v.input.opt.chunkSize) {
 		chunkedPayloadSize = int(v.input.opt.chunkSize)
 	}
@@ -358,10 +358,10 @@ func (v *Protocol) readMessagePayload(chunk *chunkStream) (m *Message, err error
 	}
 	//fmt.Println(fmt.Sprintf("payload %v/%v bytes %v", chunk.message.payloadLength, chunkedPayloadSize, b))
 
-	chunk.message.payload = append(chunk.message.payload, b...)
+	chunk.message.Payload = append(chunk.message.Payload, b...)
 
 	// Got entire RTMP message?
-	if int(chunk.message.payloadLength) == len(chunk.message.payload) {
+	if int(chunk.message.payloadLength) == len(chunk.message.Payload) {
 		m = chunk.message
 		chunk.message = nil
 	}
@@ -530,13 +530,13 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 				// 6.1.2.1. Type 0
 				// For a type-0 chunk, the absolute timestamp of the message is sent
 				// here.
-				chunk.header.timestamp = uint64(chunk.header.timestampDelta)
+				chunk.header.Timestamp = uint64(chunk.header.timestampDelta)
 			} else {
 				// 6.1.2.2. Type 1
 				// 6.1.2.3. Type 2
 				// For a type-1 or type-2 chunk, the difference between the previous
 				// chunk's timestamp and the current chunk's timestamp is sent here.
-				chunk.header.timestamp += uint64(chunk.header.timestampDelta)
+				chunk.header.Timestamp += uint64(chunk.header.timestampDelta)
 			}
 		}
 
@@ -553,7 +553,7 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 			}
 			chunk.header.payloadLength = payloadLength
 
-			chunk.header.messageType = MessageType(p[0])
+			chunk.header.MessageType = MessageType(p[0])
 			p = p[1:]
 
 			if format == formatType0 {
@@ -564,7 +564,7 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 	} else {
 		// Update the timestamp even fmt=3 for first chunk packet
 		if isFirstChunkOfMsg && !chunk.extendedTimestamp {
-			chunk.header.timestamp += uint64(chunk.header.timestampDelta)
+			chunk.header.Timestamp += uint64(chunk.header.timestampDelta)
 		}
 	}
 
@@ -581,7 +581,7 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 
 		// TODO: FIXME: Support detect the extended timestamp.
 		// @see http://blog.csdn.net/win_lin/article/details/13363699
-		chunk.header.timestamp = uint64(timestamp)
+		chunk.header.Timestamp = uint64(timestamp)
 	}
 
 	// The extended-timestamp must be unsigned-int,
@@ -604,10 +604,10 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 	//        milliseconds.
 	// in a word, 31bits timestamp is ok.
 	// convert extended timestamp to 31bits.
-	chunk.header.timestamp &= 0x7fffffff
+	chunk.header.Timestamp &= 0x7fffffff
 
 	// Copy header to msg
-	chunk.message.MessageHeader = chunk.header
+	chunk.message.messageHeader = chunk.header
 
 	// Increase the msg count, the chunk stream can accept fmt=1/2/3 message now.
 	chunk.count++
@@ -690,16 +690,15 @@ func (v *Protocol) readBasicHeader() (format formatType, cid chunkID, err error)
 func (v *Protocol) WritePacket(pkt Packet, streamID int) (err error) {
 	m := NewMessage()
 
-	if m.payload, err = pkt.MarshalBinary(); err != nil {
+	if m.Payload, err = pkt.MarshalBinary(); err != nil {
 		return
 	}
 
-	m.payloadLength = uint32(len(m.payload))
-	m.messageType = pkt.Type()
+	m.MessageType = pkt.Type()
 	m.streamID = uint32(streamID)
 	m.betterCid = pkt.BetterCid()
 
-	if err = v.writeMessage(m); err != nil {
+	if err = v.WriteMessage(m); err != nil {
 		return
 	}
 
@@ -733,7 +732,7 @@ func (v *Protocol) onPacketWriten(m *Message, pkt Packet) (err error) {
 
 func (v *Protocol) onMessageArrivated(m *Message) (err error) {
 	var pkt Packet
-	switch m.messageType {
+	switch m.MessageType {
 	case MessageTypeSetChunkSize, MessageTypeUserControl, MessageTypeWindowAcknowledgementSize:
 		if pkt, err = v.DecodeMessage(m); err != nil {
 			return
@@ -748,7 +747,9 @@ func (v *Protocol) onMessageArrivated(m *Message) (err error) {
 	return
 }
 
-func (v *Protocol) writeMessage(m *Message) (err error) {
+func (v *Protocol) WriteMessage(m *Message) (err error) {
+	m.payloadLength = uint32(len(m.Payload))
+
 	var c0h, c3h []byte
 	if c0h, err = m.generateC0Header(); err != nil {
 		return
@@ -758,7 +759,7 @@ func (v *Protocol) writeMessage(m *Message) (err error) {
 	}
 
 	var h []byte
-	p := m.payload
+	p := m.Payload
 	for len(p) > 0 {
 		if h == nil {
 			h = c0h
@@ -851,7 +852,7 @@ const (
 )
 
 // The header of message.
-type MessageHeader struct {
+type messageHeader struct {
 	// 3bytes.
 	// Three-byte field that contains a timestamp delta of the message.
 	// @remark, only used for decoding message from chunk stream.
@@ -863,7 +864,7 @@ type MessageHeader struct {
 	// 1byte.
 	// One byte field to represent the message type. A range of type IDs
 	// (1-7) are reserved for protocol control messages.
-	messageType MessageType
+	MessageType MessageType
 	// 4bytes.
 	// Four-byte field that identifies the stream of the message. These
 	// bytes are set in little-endian format.
@@ -875,25 +876,32 @@ type MessageHeader struct {
 	// Four-byte field that contains a timestamp of the message.
 	// The 4 bytes are packed in the big-endian order.
 	// @remark, we use 64bits for large time for jitter detect and for large tbn like HLS.
-	timestamp uint64
+	Timestamp uint64
 }
 
 // The RTMP message, transport over chunk stream in RTMP.
 // Please read the cs id of @doc rtmp_specification_1.0.pdf, @page 30, @section 4.1. Message Header
 type Message struct {
-	MessageHeader
+	messageHeader
 
 	// The payload which carries the RTMP packet.
-	payload []byte
+	Payload []byte
 }
 
 func NewMessage() *Message {
 	return &Message{}
 }
 
+func NewStreamMessage(streamID int) *Message {
+	v := NewMessage()
+	v.streamID = uint32(streamID)
+	v.betterCid = chunkIDOverStream
+	return v
+}
+
 func (v *Message) generateC3Header() ([]byte, error) {
 	var c3h []byte
-	if v.timestamp < extendedTimestamp {
+	if v.Timestamp < extendedTimestamp {
 		c3h = make([]byte, 1)
 	} else {
 		c3h = make([]byte, 1+4)
@@ -907,11 +915,11 @@ func (v *Message) generateC3Header() ([]byte, error) {
 	// but actually all products from adobe, such as FMS/AMS and Flash player and FMLE,
 	// always carry a extended timestamp in C3 header.
 	// @see: http://blog.csdn.net/win_lin/article/details/13363699
-	if v.timestamp >= extendedTimestamp {
-		p[0] = byte(v.timestamp >> 24)
-		p[1] = byte(v.timestamp >> 16)
-		p[2] = byte(v.timestamp >> 8)
-		p[3] = byte(v.timestamp)
+	if v.Timestamp >= extendedTimestamp {
+		p[0] = byte(v.Timestamp >> 24)
+		p[1] = byte(v.Timestamp >> 16)
+		p[2] = byte(v.Timestamp >> 8)
+		p[3] = byte(v.Timestamp)
 	}
 
 	return c3h, nil
@@ -919,7 +927,7 @@ func (v *Message) generateC3Header() ([]byte, error) {
 
 func (v *Message) generateC0Header() ([]byte, error) {
 	var c0h []byte
-	if v.timestamp < extendedTimestamp {
+	if v.Timestamp < extendedTimestamp {
 		c0h = make([]byte, 1+3+3+1+4)
 	} else {
 		c0h = make([]byte, 1+3+3+1+4+4)
@@ -929,10 +937,10 @@ func (v *Message) generateC0Header() ([]byte, error) {
 	p[0] = byte(v.betterCid) & 0x3f
 	p = p[1:]
 
-	if v.timestamp < extendedTimestamp {
-		p[0] = byte(v.timestamp >> 16)
-		p[1] = byte(v.timestamp >> 8)
-		p[2] = byte(v.timestamp)
+	if v.Timestamp < extendedTimestamp {
+		p[0] = byte(v.Timestamp >> 16)
+		p[1] = byte(v.Timestamp >> 8)
+		p[2] = byte(v.Timestamp)
 	} else {
 		p[0] = 0xff
 		p[1] = 0xff
@@ -945,7 +953,7 @@ func (v *Message) generateC0Header() ([]byte, error) {
 	p[2] = byte(v.payloadLength)
 	p = p[3:]
 
-	p[0] = byte(v.messageType)
+	p[0] = byte(v.MessageType)
 	p = p[1:]
 
 	p[0] = byte(v.streamID)
@@ -954,11 +962,11 @@ func (v *Message) generateC0Header() ([]byte, error) {
 	p[3] = byte(v.streamID >> 24)
 	p = p[4:]
 
-	if v.timestamp >= extendedTimestamp {
-		p[0] = byte(v.timestamp >> 24)
-		p[1] = byte(v.timestamp >> 16)
-		p[2] = byte(v.timestamp >> 8)
-		p[3] = byte(v.timestamp)
+	if v.Timestamp >= extendedTimestamp {
+		p[0] = byte(v.Timestamp >> 24)
+		p[1] = byte(v.Timestamp >> 16)
+		p[2] = byte(v.Timestamp >> 8)
+		p[3] = byte(v.Timestamp)
 	}
 
 	return c0h, nil
@@ -1229,6 +1237,13 @@ type CallPacket struct {
 
 func NewCallPacket() *CallPacket {
 	return &CallPacket{}
+}
+
+func NewCloseStreamPacket() *CallPacket {
+	v := NewCallPacket()
+	v.CommandName = commandCloseStream
+	v.CommandObject = amf0.NewNull()
+	return v
 }
 
 func (v *CallPacket) Size() int {
