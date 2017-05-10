@@ -53,7 +53,7 @@ func (v TagType) String() string {
 }
 
 // FLV Demuxer is used to demux FLV file.
-// Refer to @doc video_file_format_spec_v10.pdf, @page 7, @section The FLV File Format
+// Refer to @doc video_file_format_spec_v10.pdf, @page 74, @section Annex E. The FLV File Format
 // A FLV file must consist the bellow parts:
 //	1. A FLV header, refer to @doc video_file_format_spec_v10.pdf, @page 8, @section The FLV header
 //	2. One or more tags, refer to @doc video_file_format_spec_v10.pdf, @page 9, @section FLV tags
@@ -71,7 +71,7 @@ type Demuxer interface {
 }
 
 // When FLV signature is not "FLV"
-var ErrSignature = errors.New("FLV signatures are illegal")
+var errSignature = errors.New("FLV signatures are illegal")
 
 // Create a demuxer object.
 func NewDemuxer(r io.Reader) (Demuxer, error) {
@@ -93,7 +93,7 @@ func (v *demuxer) ReadHeader() (version uint8, hasVideo, hasAudio bool, err erro
 	p := h.Bytes()
 
 	if !bytes.Equal([]byte{byte('F'), byte('L'), byte('V')}, p[:3]) {
-		err = ErrSignature
+		err = errSignature
 		return
 	}
 
@@ -136,6 +136,7 @@ func (v *demuxer) Close() error {
 }
 
 // The FLV muxer is used to write packet in FLV protocol.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 74, @section Annex E. The FLV File Format
 type Muxer interface {
 	// Write the FLV header.
 	WriteHeader(hasVideo, hasAudio bool) (err error)
@@ -216,4 +217,202 @@ func (v *muxer) WriteTag(tagType TagType, timestamp uint32, tag []byte) (err err
 
 func (v *muxer) Close() error {
 	return nil
+}
+
+// The AAC frame trait, whether sequence header(ASC) or raw data.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 77, @section E.4.2 Audio Tags
+type AACFrameTrait uint8
+
+const (
+	AACFrameTraitSequenceHeader AACFrameTrait = iota // 0 = AAC sequence header
+	AACFrameTraitRaw                                 // 1 = AAC raw
+	AACFrameTraitForbidden
+)
+
+func (v AACFrameTrait) String() string {
+	switch v {
+	case AACFrameTraitSequenceHeader:
+		return "SequenceHeader"
+	case AACFrameTraitRaw:
+		return "Raw"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The audio channels, FLV named it the SoundType.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 77, @section E.4.2 Audio Tags
+type AudioChannels uint8
+
+const (
+	AudioChannelsMono   AudioChannels = iota // 0 = Mono sound
+	AudioChannelsStereo                      // 1 = Stereo sound
+	AudioChannelsForbidden
+)
+
+func (v AudioChannels) String() string {
+	switch v {
+	case AudioChannelsMono:
+		return "Mono"
+	case AudioChannelsStereo:
+		return "Stereo"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The audio sample bits, FLV named it the SoundSize.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+type AudioSampleBits uint8
+
+const (
+	AudioSampleBits8bits  AudioSampleBits = iota // 0 = 8-bit samples
+	AudioSampleBits16bits                        // 1 = 16-bit samples
+	AudioSampleBitsForbidden
+)
+
+func (v AudioSampleBits) String() string {
+	switch v {
+	case AudioSampleBits8bits:
+		return "8-bits"
+	case AudioSampleBits16bits:
+		return "16-bits"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The audio sampling rate, FLV named it the SoundRate.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+type AudioSamplingRate uint8
+
+const (
+	AudioSamplingRate5kHz  AudioSamplingRate = iota // 0 = 5.5 kHz
+	AudioSamplingRate11kHz                          // 1 = 11 kHz
+	AudioSamplingRate22kHz                          // 2 = 22 kHz
+	AudioSamplingRate44kHz                          // 3 = 44 kHz
+	AudioSamplingRateForbidden
+)
+
+func (v AudioSamplingRate) String() string {
+	switch v {
+	case AudioSamplingRate5kHz:
+		return "5.5kHz"
+	case AudioSamplingRate11kHz:
+		return "11kHz"
+	case AudioSamplingRate22kHz:
+		return "22kHz"
+	case AudioSamplingRate44kHz:
+		return "44kHz"
+	default:
+		return "Forbidden"
+	}
+}
+
+// Parse the FLV sampling rate to Hz.
+func (v AudioSamplingRate) ToHz() int {
+	flvSR := []int{5512, 11025, 22050, 44100}
+	return flvSR[v]
+}
+
+// The audio codec id, FLV named it the SoundFormat.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+type AudioCodec uint8
+
+const (
+	AudioCodecLinearPCM       AudioCodec = iota // 0 = Linear PCM, platform endian
+	AudioCodecADPCM                             // 1 = ADPCM
+	AudioCodecMP3                               // 2 = MP3
+	AudioCodecLinearPCMle                       // 3 = Linear PCM, little endian
+	AudioCodecNellymoser16kHz                   // 4 = Nellymoser 16 kHz mono
+	AudioCodecNellymoser8kHz                    // 5 = Nellymoser 8 kHz mono
+	AudioCodecNellymoser                        // 6 = Nellymoser
+	AudioCodecG711Alaw                          // 7 = G.711 A-law logarithmic PCM
+	AudioCodecG711MuLaw                         // 8 = G.711 mu-law logarithmic PCM
+	AudioCodecReserved                          // 9 = reserved
+	AudioCodecAAC                               // 10 = AAC
+	AudioCodecSpeex                             // 11 = Speex
+	AudioCodecUndefined12
+	AudioCodecUndefined13
+	AudioCodecMP3In8kHz      // 14 = MP3 8 kHz
+	AudioCodecDeviceSpecific // 15 = Device-specific sound
+	AudioCodecForbidden
+)
+
+func (v AudioCodec) String() string {
+	switch v {
+	case AudioCodecLinearPCM:
+		return "LinearPCM(platform-endian)"
+	case AudioCodecADPCM:
+		return "ADPCM"
+	case AudioCodecMP3:
+		return "MP3"
+	case AudioCodecLinearPCMle:
+		return "LinearPCM(little-endian)"
+	case AudioCodecNellymoser16kHz:
+		return "Nellymoser(16kHz-mono)"
+	case AudioCodecNellymoser8kHz:
+		return "Nellymoser(8kHz-mono)"
+	case AudioCodecNellymoser:
+		return "Nellymoser"
+	case AudioCodecG711Alaw:
+		return "G.711(A-law)"
+	case AudioCodecG711MuLaw:
+		return "G.711(mu-law)"
+	case AudioCodecAAC:
+		return "AAC"
+	case AudioCodecSpeex:
+		return "Speex"
+	case AudioCodecMP3In8kHz:
+		return "MP3(8kHz)"
+	case AudioCodecDeviceSpecific:
+		return "DeviceSpecific"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The AAC used to codec the FLV audio tag body in AAC format.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+type AAC interface {
+	// Encode the AAC frame to FLV audio tag.
+	Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error)
+	// Decode the FLV audio tag to AAC frame.
+	Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error)
+}
+
+var errDataNotEnough = errors.New("Data not enough")
+
+type aac struct {
+}
+
+func NewAAC() (AAC, error) {
+	return &aac{}, nil
+}
+
+func (v *aac) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error) {
+	return append([]byte{
+		byte(soundFormat)<<4 | byte(soundRate)<<2 | byte(soundSize)<<1 | byte(soundType),
+		byte(trait),
+	}, frame...), nil
+}
+
+func (v *aac) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error) {
+	// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+	// @see SrsFormat::audio_aac_demux
+	if len(tag) < 2 {
+		err = errDataNotEnough
+		return
+	}
+
+	t := uint8(tag[0])
+	soundFormat = AudioCodec(uint8(t>>4) & 0x0f)
+	soundRate = AudioSamplingRate(uint8(t>>2) & 0x03)
+	soundSize = AudioSampleBits(uint8(t>>1) & 0x01)
+	soundType = AudioChannels(t & 0x01)
+
+	trait = AACFrameTrait(tag[1])
+	frame = tag[2:]
+
+	return
 }
