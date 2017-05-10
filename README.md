@@ -1,7 +1,6 @@
 # go-oryx-lib
 
 [![CircleCI](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master.svg?style=svg&circle-token=6c8eac51700e7c8a4b64b714b3ce5775b518fd15)](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/ossrs/go-oryx?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 The public library for [go-oryx](https://github.com/ossrs/go-oryx).
 
@@ -19,6 +18,8 @@ The core library including:
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [x] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
+- [ ] [aac](aac/example_test.go): The AAC utilities, for oryx.
+- [ ] [avc](avc/example_test.go): The AVC utilities, for oryx.
 
 Other audio/video libraries:
 
