@@ -39,10 +39,11 @@ type ADTS interface {
 
 	// Decode the adts data to raw frame.
 	// @remark User can get the asc after decode ok.
-	Decode(adts []byte) (raw []byte, err error)
+	// @remark When left if not nil, user must decode it again.
+	Decode(adts []byte) (raw, left []byte, err error)
 	// Get the ASC, the codec information.
 	// When decode a adts data or set the asc, user can use this API to get it.
-	ASC() (asc []byte)
+	ASC() *AudioSpecificConfig
 }
 
 // The AAC object type in RAW AAC frame.
@@ -127,12 +128,151 @@ func (v Profile) ToObjectType() ObjectType {
 	}
 }
 
+// The aac sample rate index.
+// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 46, @section Table 35 – Sampling frequency
+type SampleRateIndex uint8
+
+const (
+	SampleRateIndex96kHz SampleRateIndex = iota
+	SampleRateIndex88kHz
+	SampleRateIndex64kHz
+	SampleRateIndex48kHz
+	SampleRateIndex44kHz
+	SampleRateIndex32kHz
+	SampleRateIndex24kHz
+	SampleRateIndex22kHz
+	SampleRateIndex16kHz
+	SampleRateIndex12kHz
+	SampleRateIndex11kHz
+	SampleRateIndex8kHz
+	SampleRateIndex7kHz
+	SampleRateIndexReserved0
+	SampleRateIndexReserved1
+	SampleRateIndexReserved2
+	SampleRateIndexReserved3
+	SampleRateIndexForbidden
+)
+
+func (v SampleRateIndex) String() string {
+	switch v {
+	case SampleRateIndex96kHz:
+		return "96kHz"
+	case SampleRateIndex88kHz:
+		return "88kHz"
+	case SampleRateIndex64kHz:
+		return "64kHz"
+	case SampleRateIndex48kHz:
+		return "48kHz"
+	case SampleRateIndex44kHz:
+		return "44kHz"
+	case SampleRateIndex32kHz:
+		return "32kHz"
+	case SampleRateIndex24kHz:
+		return "24kHz"
+	case SampleRateIndex22kHz:
+		return "22kHz"
+	case SampleRateIndex16kHz:
+		return "16kHz"
+	case SampleRateIndex12kHz:
+		return "12kHz"
+	case SampleRateIndex11kHz:
+		return "11kHz"
+	case SampleRateIndex8kHz:
+		return "8kHz"
+	case SampleRateIndex7kHz:
+		return "7kHz"
+	case SampleRateIndexReserved0, SampleRateIndexReserved1, SampleRateIndexReserved2, SampleRateIndexReserved3:
+		return "Reserved"
+	default:
+		return "Forbidden"
+	}
+}
+
+func (v SampleRateIndex) ToHz() int {
+	aacSR := []int{
+		96000, 88200, 64000, 48000,
+		44100, 32000, 24000, 22050,
+		16000, 12000, 11025, 8000,
+		7350, 0, 0, 0,
+	}
+	return aacSR[v]
+}
+
+// The aac channel.
+// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 72, @section Table 42 – Implicit speaker mapping
+type Channels uint8
+
+const (
+	ChannelForbidden Channels = iota
+	// center front speaker
+	// FFMPEG: mono           FC
+	ChannelMono
+	// left, right front speakers
+	// FFMPEG: stereo         FL+FR
+	ChannelStereo
+	// center front speaker, left, right front speakers
+	// FFMPEG: 2.1            FL+FR+LFE
+	// FFMPEG: 3.0            FL+FR+FC
+	// FFMPEG: 3.0(back)      FL+FR+BC
+	Channel3
+	// center front speaker, left, right center front speakers, rear surround
+	// FFMPEG: 4.0            FL+FR+FC+BC
+	// FFMPEG: quad           FL+FR+BL+BR
+	// FFMPEG: quad(side)     FL+FR+SL+SR
+	// FFMPEG: 3.1            FL+FR+FC+LFE
+	Channel4
+	// center front speaker, left, right front speakers, left surround, right surround rear speakers
+	// FFMPEG: 5.0            FL+FR+FC+BL+BR
+	// FFMPEG: 5.0(side)      FL+FR+FC+SL+SR
+	// FFMPEG: 4.1            FL+FR+FC+LFE+BC
+	Channel5
+	// center front speaker, left, right front speakers, left surround, right surround rear speakers,
+	// front low frequency effects speaker
+	// FFMPEG: 5.1            FL+FR+FC+LFE+BL+BR
+	// FFMPEG: 5.1(side)      FL+FR+FC+LFE+SL+SR
+	// FFMPEG: 6.0            FL+FR+FC+BC+SL+SR
+	// FFMPEG: 6.0(front)     FL+FR+FLC+FRC+SL+SR
+	// FFMPEG: hexagonal      FL+FR+FC+BL+BR+BC
+	Channel5_1 // speakers: 6
+	// center front speaker, left, right center front speakers, left, right outside front speakers,
+	// left surround, right surround rear speakers, front low frequency effects speaker
+	// FFMPEG: 7.1            FL+FR+FC+LFE+BL+BR+SL+SR
+	// FFMPEG: 7.1(wide)      FL+FR+FC+LFE+BL+BR+FLC+FRC
+	// FFMPEG: 7.1(wide-side) FL+FR+FC+LFE+FLC+FRC+SL+SR
+	Channel7_1 // speakers: 7
+	// FFMPEG: 6.1            FL+FR+FC+LFE+BC+SL+SR
+	// FFMPEG: 6.1(back)      FL+FR+FC+LFE+BL+BR+BC
+	// FFMPEG: 6.1(front)     FL+FR+LFE+FLC+FRC+SL+SR
+	// FFMPEG: 7.0            FL+FR+FC+BL+BR+SL+SR
+	// FFMPEG: 7.0(front)     FL+FR+FC+FLC+FRC+SL+SR
+)
+
+func (v Channels) String() string {
+	switch v {
+	case ChannelMono:
+		return "Mono(FC)"
+	case ChannelStereo:
+		return "Stereo(FL+FR)"
+	case Channel3:
+		return "FL+FR+FC"
+	case Channel4:
+		return "FL+FR+FC+BC"
+	case Channel5:
+		return "FL+FR+FC+SL+SR"
+	case Channel5_1:
+		return "FL+FR+FC+LFE+SL+SR"
+	case Channel7_1:
+		return "FL+FR+FC+LFE+BL+BR+SL+SR"
+	default:
+		return "Forbidden"
+	}
+}
+
 var errDataNotEnough = errors.New("Data not enough")
+var errADTSSignature = errors.New("ADTS check failed")
 
 type adts struct {
-	object     ObjectType // AAC object type.
-	sampleRate uint8      // AAC sample rate, not the FLV sampling rate.
-	channels   uint8      // AAC channel configuration.
+	asc AudioSpecificConfig
 }
 
 func NewADTS() (ADTS, error) {
@@ -140,32 +280,12 @@ func NewADTS() (ADTS, error) {
 }
 
 func (v *adts) SetASC(asc []byte) (err error) {
-	// AudioSpecificConfig
-	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
-	//
-	// only need to decode the first 2bytes:
-	// audioObjectType, 5bits.
-	// samplingFrequencyIndex, aac_sample_rate, 4bits.
-	// channelConfiguration, aac_channels, 4bits
-	//
-	// @see SrsAacTransmuxer::write_audio
-	if len(asc) < 2 {
-		return errDataNotEnough
-	}
-
-	t0, t1 := uint8(asc[0]), uint8(asc[1])
-
-	v.object = ObjectType((t0 >> 3) & 0x1f)
-	v.sampleRate = ((t0 << 1) & 0x0e) | ((t1 >> 7) & 0x01)
-	v.channels = (t1 >> 3) & 0x0f
-
-	return
+	return v.asc.UnmarshalBinary(asc)
 }
 
 func (v *adts) Encode(raw []byte) (adts []byte, err error) {
 	// write the ADTS header.
-	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 75, @section 1.A.2.2 Audio_Data_Transport_Stream frame, ADTS
-	// @see https://github.com/ossrs/srs/issues/212#issuecomment-64145885
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 26, @section 6.2 Audio Data Transport Stream, ADTS
 	// byte_alignment()
 
 	// adts_fixed_header:
@@ -187,7 +307,7 @@ func (v *adts) Encode(raw []byte) (adts []byte, err error) {
 	// Syncword 12 bslbf
 	p[0] = byte(0xff)
 	// 4bits left.
-	// adts_fixed_header(), 1.A.2.2.1 Fixed Header of ADTS
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 27, @section 6.2.1 Fixed Header of ADTS
 	// ID 1 bslbf
 	// Layer 2 uimsbf
 	// protection_absent 1 bslbf
@@ -199,15 +319,15 @@ func (v *adts) Encode(raw []byte) (adts []byte, err error) {
 	// channel_configuration 3 uimsbf
 	// original/copy 1 bslbf
 	// home 1 bslbf
-	profile := v.object.ToProfile()
-	p[2] = byte((profile<<6)&0xc0) | byte((v.sampleRate<<2)&0x3c) | byte((v.channels>>2)&0x01)
+	profile := v.asc.Object.ToProfile()
+	p[2] = byte((profile<<6)&0xc0) | byte((v.asc.SampleRate<<2)&0x3c) | byte((v.asc.Channels>>2)&0x01)
 
 	// 4bits left.
-	// adts_variable_header(), 1.A.2.2.2 Variable Header of ADTS
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 27, @section 6.2.2 Variable Header of ADTS
 	// copyright_identification_bit 1 bslbf
 	// copyright_identification_start 1 bslbf
 	aacFrameLength := uint16(len(raw) + len(aacFixedHeader))
-	p[3] = byte((v.channels<<6)&0xc0) | byte((aacFrameLength>>11)&0x03)
+	p[3] = byte((v.asc.Channels<<6)&0xc0) | byte((aacFrameLength>>11)&0x03)
 
 	// aac_frame_length 13 bslbf: Length of the frame including headers and error_check in bytes.
 	// use the left 2bits as the 13 and 12 bit,
@@ -222,10 +342,140 @@ func (v *adts) Encode(raw []byte) (adts []byte, err error) {
 	return append(p, raw...), nil
 }
 
-func (v *adts) Decode(adts []byte) (raw []byte, err error) {
+func (v *adts) Decode(adts []byte) (raw, left []byte, err error) {
+	// write the ADTS header.
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 26, @section 6.2 Audio Data Transport Stream, ADTS
+	// @see https://github.com/ossrs/srs/issues/212#issuecomment-64145885
+	// byte_alignment()
+	p := adts
+	if len(p) < 7 {
+		return nil, nil, errDataNotEnough
+	}
+
+	// matched 12bits 0xFFF,
+	// @remark, we must cast the 0xff to char to compare.
+	if p[0] != 0xff || p[1]&0xf0 != 0xf0 {
+		return nil, nil, errADTSSignature
+	}
+
+	// Syncword 12 bslbf
+	_ = p[0]
+	// 4bits left.
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 27, @section 6.2.1 Fixed Header of ADTS
+	// ID 1 bslbf
+	// layer 2 uimsbf
+	// protection_absent 1 bslbf
+	pat := uint8(p[1]) & 0x0f
+	id := (pat >> 3) & 0x01
+	//layer := (pat >> 1) & 0x03
+	protectionAbsent := pat & 0x01
+
+	// ID: MPEG identifier, set to '1' if the audio data in the ADTS stream are MPEG-2 AAC (See ISO/IEC 13818-7)
+	// and set to '0' if the audio data are MPEG-4. See also ISO/IEC 11172-3, subclause 2.4.2.3.
+	if id != 0x01 {
+		// well, some system always use 0, but actually is aac format.
+		// for example, houjian vod ts always set the aac id to 0, actually 1.
+		// we just ignore it, and alwyas use 1(aac) to demux.
+		id = 0x01
+	}
+
+	sfiv := uint16(p[2])<<8 | uint16(p[3])
+	// profile 2 uimsbf
+	// sampling_frequency_index 4 uimsbf
+	// private_bit 1 bslbf
+	// channel_configuration 3 uimsbf
+	// original/copy 1 bslbf
+	// home 1 bslbf
+	profile := Profile(uint8(sfiv>>14) & 0x03)
+	samplingFrequencyIndex := uint8(sfiv>>10) & 0x0f
+	//private_bit := (t >> 9) & 0x01
+	channelConfiguration := uint8(sfiv>>6) & 0x07
+	//original := uint8(sfiv >> 5) & 0x01
+	//home := uint8(sfiv >> 4) & 0x01
+	// 4bits left.
+	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 27, @section 6.2.2 Variable Header of ADTS
+	// copyright_identification_bit 1 bslbf
+	// copyright_identification_start 1 bslbf
+	//fh_copyright_identification_bit = uint8(sfiv >> 3) & 0x01
+	//fh_copyright_identification_start = uint8(sfiv >> 2) & 0x01
+	// frame_length 13 bslbf: Length of the frame including headers and error_check in bytes.
+	// use the left 2bits as the 13 and 12 bit,
+	// the frame_length is 13bits, so we move 13-2=11.
+	frameLength := (sfiv << 11) & 0x1800
+
+	abfv := uint32(p[4])<<16 | uint32(p[5])<<8 | uint32(p[6])
+	p = p[7:]
+
+	// frame_length 13 bslbf: consume the first 13-2=11bits
+	// the fh2 is 24bits, so we move right 24-11=13.
+	frameLength |= uint16((abfv >> 13) & 0x07ff)
+	// adts_buffer_fullness 11 bslbf
+	//fh_adts_buffer_fullness = (abfv >> 2) & 0x7ff
+	// number_of_raw_data_blocks_in_frame 2 uimsbf
+	//number_of_raw_data_blocks_in_frame = abfv & 0x03
+	// adts_error_check(), 1.A.2.2.3 Error detection
+	if protectionAbsent == 0 {
+		if len(p) < 2 {
+			return nil, nil, errDataNotEnough
+		}
+		// crc_check 16 Rpchof
+		p = p[2:]
+	}
+
+	v.asc.Object = profile.ToObjectType()
+	v.asc.Channels = Channels(channelConfiguration)
+	v.asc.SampleRate = SampleRateIndex(samplingFrequencyIndex)
+	raw = p[:frameLength-7]
+	left = p[frameLength-7:]
+
 	return
 }
 
-func (v *adts) ASC() (asc []byte) {
+func (v *adts) ASC() *AudioSpecificConfig {
+	return &v.asc
+}
+
+// Convert the ASC(Audio Specific Configuration).
+// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
+type AudioSpecificConfig struct {
+	Object     ObjectType      // AAC object type.
+	SampleRate SampleRateIndex // AAC sample rate, not the FLV sampling rate.
+	Channels   Channels        // AAC channel configuration.
+}
+
+func (v *AudioSpecificConfig) UnmarshalBinary(data []byte) (err error) {
+	// AudioSpecificConfig
+	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
+	//
+	// only need to decode the first 2bytes:
+	// audioObjectType, 5bits.
+	// samplingFrequencyIndex, aac_sample_rate, 4bits.
+	// channelConfiguration, aac_channels, 4bits
+	//
+	// @see SrsAacTransmuxer::write_audio
+	if len(data) < 2 {
+		return errDataNotEnough
+	}
+
+	t0, t1 := uint8(data[0]), uint8(data[1])
+
+	v.Object = ObjectType((t0 >> 3) & 0x1f)
+	v.SampleRate = SampleRateIndex(((t0 << 1) & 0x0e) | ((t1 >> 7) & 0x01))
+	v.Channels = Channels((t1 >> 3) & 0x0f)
+
 	return
+}
+
+func (v *AudioSpecificConfig) MarshalBinary() (data []byte, err error) {
+	// AudioSpecificConfig
+	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
+	//
+	// only need to decode the first 2bytes:
+	// audioObjectType, 5bits.
+	// samplingFrequencyIndex, aac_sample_rate, 4bits.
+	// channelConfiguration, aac_channels, 4bits
+	return []byte{
+		byte(byte(v.Object)&0x1f)<<3 | byte(byte(v.SampleRate)&0x0e)>>1,
+		byte(byte(v.SampleRate)&0x01)<<7 | byte(byte(v.Channels)&0x0f)<<3,
+	}, nil
 }

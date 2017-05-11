@@ -25,6 +25,7 @@ package flv
 import (
 	"bytes"
 	"errors"
+	"github.com/ossrs/go-oryx-lib/aac"
 	"io"
 )
 
@@ -261,6 +262,19 @@ func (v AudioChannels) String() string {
 	}
 }
 
+func (v *AudioChannels) From(a aac.Channels) {
+	switch a {
+	case aac.ChannelMono:
+		*v = AudioChannelsMono
+	case aac.ChannelStereo:
+		*v = AudioChannelsStereo
+	case aac.Channel3, aac.Channel4, aac.Channel5, aac.Channel5_1, aac.Channel7_1:
+		*v = AudioChannelsStereo
+	default:
+		*v = AudioChannelsForbidden
+	}
+}
+
 // The audio sample bits, FLV named it the SoundSize.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
 type AudioSampleBits uint8
@@ -313,6 +327,24 @@ func (v AudioSamplingRate) String() string {
 func (v AudioSamplingRate) ToHz() int {
 	flvSR := []int{5512, 11025, 22050, 44100}
 	return flvSR[v]
+}
+
+// Convert aac sample rate index to FLV sampling rate.
+func (v *AudioSamplingRate) From(a aac.SampleRateIndex) {
+	switch a {
+	case aac.SampleRateIndex96kHz, aac.SampleRateIndex88kHz, aac.SampleRateIndex64kHz:
+		*v = AudioSamplingRate44kHz
+	case aac.SampleRateIndex48kHz, aac.SampleRateIndex44kHz, aac.SampleRateIndex32kHz:
+		*v = AudioSamplingRate44kHz
+	case aac.SampleRateIndex24kHz, aac.SampleRateIndex22kHz, aac.SampleRateIndex16kHz:
+		*v = AudioSamplingRate22kHz
+	case aac.SampleRateIndex12kHz, aac.SampleRateIndex11kHz, aac.SampleRateIndex8kHz:
+		*v = AudioSamplingRate11kHz
+	case aac.SampleRateIndex7kHz:
+		*v = AudioSamplingRate5kHz
+	default:
+		*v = AudioSamplingRateForbidden
+	}
 }
 
 // The audio codec id, FLV named it the SoundFormat.
@@ -383,21 +415,21 @@ type AAC interface {
 
 var errDataNotEnough = errors.New("Data not enough")
 
-type aac struct {
+type aacCodec struct {
 }
 
 func NewAAC() (AAC, error) {
-	return &aac{}, nil
+	return &aacCodec{}, nil
 }
 
-func (v *aac) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error) {
+func (v *aacCodec) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error) {
 	return append([]byte{
 		byte(soundFormat)<<4 | byte(soundRate)<<2 | byte(soundSize)<<1 | byte(soundType),
 		byte(trait),
 	}, frame...), nil
 }
 
-func (v *aac) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error) {
+func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error) {
 	// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
 	// @see SrsFormat::audio_aac_demux
 	if len(tag) < 2 {
