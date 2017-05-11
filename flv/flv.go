@@ -220,21 +220,21 @@ func (v *muxer) Close() error {
 	return nil
 }
 
-// The AAC frame trait, whether sequence header(ASC) or raw data.
+// The Audio AAC frame trait, whether sequence header(ASC) or raw data.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 77, @section E.4.2 Audio Tags
-type AACFrameTrait uint8
+type AudioFrameTrait uint8
 
 const (
-	AACFrameTraitSequenceHeader AACFrameTrait = iota // 0 = AAC sequence header
-	AACFrameTraitRaw                                 // 1 = AAC raw
-	AACFrameTraitForbidden
+	AudioFrameTraitSequenceHeader AudioFrameTrait = iota // 0 = AAC sequence header
+	AudioFrameTraitRaw                                   // 1 = AAC raw
+	AudioFrameTraitForbidden
 )
 
-func (v AACFrameTrait) String() string {
+func (v AudioFrameTrait) String() string {
 	switch v {
-	case AACFrameTraitSequenceHeader:
+	case AudioFrameTraitSequenceHeader:
 		return "SequenceHeader"
-	case AACFrameTraitRaw:
+	case AudioFrameTraitRaw:
 		return "Raw"
 	default:
 		return "Forbidden"
@@ -408,9 +408,9 @@ func (v AudioCodec) String() string {
 // Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
 type AAC interface {
 	// Encode the AAC frame to FLV audio tag.
-	Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error)
+	Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte) (tag []byte, err error)
 	// Decode the FLV audio tag to AAC frame.
-	Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error)
+	Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte, err error)
 }
 
 var errDataNotEnough = errors.New("Data not enough")
@@ -422,14 +422,14 @@ func NewAAC() (AAC, error) {
 	return &aacCodec{}, nil
 }
 
-func (v *aacCodec) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte) (tag []byte, err error) {
+func (v *aacCodec) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte) (tag []byte, err error) {
 	return append([]byte{
 		byte(soundFormat)<<4 | byte(soundRate)<<2 | byte(soundSize)<<1 | byte(soundType),
 		byte(trait),
 	}, frame...), nil
 }
 
-func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AACFrameTrait, frame []byte, err error) {
+func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte, err error) {
 	// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
 	// @see SrsFormat::audio_aac_demux
 	if len(tag) < 2 {
@@ -443,8 +443,125 @@ func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSa
 	soundSize = AudioSampleBits(uint8(t>>1) & 0x01)
 	soundType = AudioChannels(t & 0x01)
 
-	trait = AACFrameTrait(tag[1])
+	trait = AudioFrameTrait(tag[1])
 	frame = tag[2:]
+
+	return
+}
+
+// The video frame type.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+type VideoFrameType uint8
+
+const (
+	VideoFrameTypeForbidden  VideoFrameType = iota
+	VideoFrameTypeKeyframe                  //  1 = key frame (for AVC, a seekable frame)
+	VideoFrameTypeInterframe                // 2 = inter frame (for AVC, a non-seekable frame)
+	VideoFrameTypeDisposable                // 3 = disposable inter frame (H.263 only)
+	VideoFrameTypeGenerated                 // 4 = generated key frame (reserved for server use only)
+	VideoFrameTypeInfo                      // 5 = video info/command frame
+)
+
+func (v VideoFrameType) String() string {
+	switch v {
+	case VideoFrameTypeKeyframe:
+		return "Keyframe"
+	case VideoFrameTypeInterframe:
+		return "Interframe"
+	case VideoFrameTypeDisposable:
+		return "DisposableInterframe"
+	case VideoFrameTypeGenerated:
+		return "GeneratedKeyframe"
+	case VideoFrameTypeInfo:
+		return "Info"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The video codec id.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+type VideoCodec uint8
+
+const (
+	VideoCodecForbidden   VideoCodec = iota + 1
+	VideoCodecH263                   // 2 = Sorenson H.263
+	VideoCodecScreen                 // 3 = Screen video
+	VideoCodecOn2VP6                 // 4 = On2 VP6
+	VideoCodecOn2VP6Alpha            // 5 = On2 VP6 with alpha channel
+	VideoCodecScreen2                // 6 = Screen video version 2
+	VideoCodecAVC                    // 7 = AVC
+)
+
+func (v VideoCodec) String() string {
+	switch v {
+	case VideoCodecH263:
+		return "H.263"
+	case VideoCodecScreen:
+		return "Screen"
+	case VideoCodecOn2VP6:
+		return "VP6"
+	case VideoCodecOn2VP6Alpha:
+		return "On2VP6(alpha)"
+	case VideoCodecScreen2:
+		return "Screen2"
+	case VideoCodecAVC:
+		return "AVC"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The video AVC frame trait, whethere sequence header or not.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+type VideoFrameTrait uint8
+
+const (
+	VideoFrameTraitSequenceHeader VideoFrameTrait = iota // 0 = AVC sequence header
+	VideoFrameTraitNALU                                  // 1 = AVC NALU
+	VideoFrameTraitSequenceEOF                           // 2 = AVC end of sequence (lower level NALU sequence ender is
+	VideoFrameTraitForbidden
+)
+
+func (v VideoFrameTrait) String() string {
+	switch v {
+	case VideoFrameTraitSequenceHeader:
+		return "SequenceHeader"
+	case VideoFrameTraitNALU:
+		return "NALU"
+	case VideoFrameTraitSequenceEOF:
+		return "SequenceEOF"
+	default:
+		return "Forbidden"
+	}
+}
+
+// The AVC used to codec the FLV video tag body in AVC(H.264) format.
+// Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+type AVC interface {
+	// Decode the FLV video tag to AVC frame.
+	// @remark For RTMP/FLV: pts = dts + cts, where dts is timestamp in packet/tag.
+	Decode(tag []byte) (codecID VideoCodec, frameType VideoFrameType, trait VideoFrameTrait, cts int32, avc []byte, err error)
+}
+
+type avc struct {
+}
+
+func NewAVC() (AVC, error) {
+	return &avc{}, nil
+}
+
+func (v *avc) Decode(tag []byte) (codecID VideoCodec, frameType VideoFrameType, trait VideoFrameTrait, cts int32, avc []byte, err error) {
+	if len(tag) < 5 {
+		err = errDataNotEnough
+		return
+	}
+
+	p := tag
+	frameType = VideoFrameType(byte(p[0]>>4) & 0x0f)
+	codecID = VideoCodec(byte(p[0]) & 0x0f)
+	trait = VideoFrameTrait(p[1])
+	cts = int32(uint32(p[2])<<16 | uint32(p[3])<<8 | uint32(p[4]))
 
 	return
 }
