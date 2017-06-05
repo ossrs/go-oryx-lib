@@ -151,3 +151,16 @@ func TestAdts_Decode3(t *testing.T) {
 		t.Error("decode")
 	}
 }
+
+func TestAdts_Decode4(t *testing.T) {
+	adts, err := NewADTS()
+	if err != nil {
+		t.Errorf("%+v", err)
+	}
+
+	if _, _, err := adts.Decode([]byte{
+		0xff, 0xf1, 0xff, 0x80, 0x01, 0x00, 0xfc, 0x00,
+	}); err == nil {
+		t.Error("decode")
+	}
+}

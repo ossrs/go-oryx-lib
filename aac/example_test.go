@@ -20,3 +20,51 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 package aac_test
+
+import (
+	"fmt"
+	"github.com/ossrs/go-oryx-lib/aac"
+)
+
+func ExampleAdts_Decode() {
+	var err error
+	var adts aac.ADTS
+	if adts, err = aac.NewADTS(); err != nil {
+		fmt.Println(fmt.Sprintf("APP: Create ADTS failed, err is %+v", err))
+		return
+	}
+
+	var data []byte // Read ADTS data from file or network.
+
+	// Ignore the left, assume that the RAW only contains one AAC frame.
+	var raw []byte
+	if raw, _, err = adts.Decode(data); err != nil {
+		fmt.Println(fmt.Sprintf("APP: ADTS decode failed, err is %+v", err))
+		return
+	}
+
+	// Use the RAW data.
+	_ = raw
+
+	// Use the asc object, for example, used as RTMP audio sequence header.
+	_ = adts.ASC()
+}
+
+func ExampleAdts_Encode() {
+	var err error
+	var adts aac.ADTS
+	if adts, err = aac.NewADTS(); err != nil {
+		fmt.Println(fmt.Sprintf("APP: Create ADTS failed, err is %+v", err))
+		return
+	}
+
+	var raw []byte // Read RAW AAC from file or network.
+	var data []byte
+	if data, err = adts.Encode(raw); err != nil {
+		fmt.Println(fmt.Sprintf("APP: ADTS encode failed, err is %+v", err))
+		return
+	}
+
+	// Use the ADTS data.
+	_ = data
+}
