@@ -2,11 +2,11 @@
 
 [![CircleCI](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master.svg?style=svg&circle-token=6c8eac51700e7c8a4b64b714b3ce5775b518fd15)](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master)
 
-The public library for [go-oryx](https://github.com/ossrs/go-oryx).
+This library is exported by server [go-oryx](https://github.com/ossrs/go-oryx).
 
 ## Packages
 
-The core library including:
+The library provides packages about network and multiple media processing:
 
 - [x] [logger](logger/example_test.go): Connection-Oriented logger for application server.
 - [x] [json](json/example_test.go): Json+ supports c and c++ style comments.
@@ -24,7 +24,7 @@ The core library including:
 
 > Remark: For library, please never use `logger`, use `errors` instead.
 
-Other audio/video libraries:
+Other multiple media libraries in golang:
 
 - [x] [go-speex](https://github.com/winlinvip/go-speex): A go binding for [speex](https://speex.org/).
 - [x] [go-fdkaac](https://github.com/winlinvip/go-fdkaac): A go binding for [fdk-aac](https://github.com/mstorsjo/fdk-aac).
