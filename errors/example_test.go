@@ -1,9 +1,10 @@
+// Fork from https://github.com/pkg/errors
 package errors_test
 
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/ossrs/go-oryx-lib/errors"
 )
 
 func ExampleNew() {
