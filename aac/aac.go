@@ -23,7 +23,7 @@
 package aac
 
 import (
-	"errors"
+	"github.com/ossrs/go-oryx-lib/errors"
 )
 
 // The ADTS is a format of AAC.
@@ -270,9 +270,6 @@ func (v Channels) String() string {
 	}
 }
 
-var errDataNotEnough = errors.New("Data not enough")
-var errADTSSignature = errors.New("ADTS check failed")
-
 type adts struct {
 	asc AudioSpecificConfig
 }
@@ -285,7 +282,11 @@ func (v *adts) SetASC(asc []byte) (err error) {
 	return v.asc.UnmarshalBinary(asc)
 }
 
-func (v *adts) Encode(raw []byte) (adts []byte, err error) {
+func (v *adts) Encode(raw []byte) (data []byte, err error) {
+	if err = v.asc.validate(); err != nil {
+		return nil, errors.WithMessage(err, "adts encode")
+	}
+
 	// write the ADTS header.
 	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 26, @section 6.2 Audio Data Transport Stream, ADTS
 	// byte_alignment()
@@ -344,20 +345,20 @@ func (v *adts) Encode(raw []byte) (adts []byte, err error) {
 	return append(p, raw...), nil
 }
 
-func (v *adts) Decode(adts []byte) (raw, left []byte, err error) {
+func (v *adts) Decode(data []byte) (raw, left []byte, err error) {
 	// write the ADTS header.
 	// Refer to @doc ISO_IEC_13818-7-AAC-2004.pdf, @page 26, @section 6.2 Audio Data Transport Stream, ADTS
 	// @see https://github.com/ossrs/srs/issues/212#issuecomment-64145885
 	// byte_alignment()
-	p := adts
-	if len(p) < 7 {
-		return nil, nil, errDataNotEnough
+	p := data
+	if len(p) <= 7 {
+		return nil, nil, errors.Errorf("requires 7+ but only %v bytes", len(p))
 	}
 
 	// matched 12bits 0xFFF,
 	// @remark, we must cast the 0xff to char to compare.
 	if p[0] != 0xff || p[1]&0xf0 != 0xf0 {
-		return nil, nil, errADTSSignature
+		return nil, nil, errors.Errorf("invalid signature %#x", uint8(p[1]&0xf0))
 	}
 
 	// Syncword 12 bslbf
@@ -417,8 +418,8 @@ func (v *adts) Decode(adts []byte) (raw, left []byte, err error) {
 	//number_of_raw_data_blocks_in_frame = abfv & 0x03
 	// adts_error_check(), 1.A.2.2.3 Error detection
 	if protectionAbsent == 0 {
-		if len(p) < 2 {
-			return nil, nil, errDataNotEnough
+		if len(p) <= 2 {
+			return nil, nil, errors.Errorf("requires 2+ but only %v bytes", len(p))
 		}
 		// crc_check 16 Rpchof
 		p = p[2:]
@@ -427,8 +428,17 @@ func (v *adts) Decode(adts []byte) (raw, left []byte, err error) {
 	v.asc.Object = profile.ToObjectType()
 	v.asc.Channels = Channels(channelConfiguration)
 	v.asc.SampleRate = SampleRateIndex(samplingFrequencyIndex)
-	raw = p[:frameLength-7]
-	left = p[frameLength-7:]
+
+	nbRaw := int(frameLength - 7)
+	if len(p) < nbRaw {
+		return nil, nil, errors.Errorf("requires %v but only %v bytes", nbRaw, len(p))
+	}
+	raw = p[:nbRaw]
+	left = p[nbRaw:]
+
+	if err = v.asc.validate(); err != nil {
+		return nil, nil, errors.WithMessage(err, "adts decode")
+	}
 
 	return
 }
@@ -445,6 +455,23 @@ type AudioSpecificConfig struct {
 	Channels   Channels        // AAC channel configuration.
 }
 
+func (v *AudioSpecificConfig) validate() (err error) {
+	switch v.Object {
+	case ObjectTypeMain, ObjectTypeLC, ObjectTypeSSR, ObjectTypeHE, ObjectTypeHEv2:
+	default:
+		return errors.Errorf("invalid object %#x", uint8(v.Object))
+	}
+
+	if v.SampleRate < SampleRateIndex88kHz || v.SampleRate > SampleRateIndex7kHz {
+		return errors.Errorf("invalid sample-rate %#x", uint8(v.SampleRate))
+	}
+
+	if v.Channels < ChannelMono || v.Channels > Channel7_1 {
+		return errors.Errorf("invalid channels %#x", uint8(v.Channels))
+	}
+	return
+}
+
 func (v *AudioSpecificConfig) UnmarshalBinary(data []byte) (err error) {
 	// AudioSpecificConfig
 	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
@@ -456,7 +483,7 @@ func (v *AudioSpecificConfig) UnmarshalBinary(data []byte) (err error) {
 	//
 	// @see SrsAacTransmuxer::write_audio
 	if len(data) < 2 {
-		return errDataNotEnough
+		return errors.Errorf("requires 2 but only %v bytes", len(data))
 	}
 
 	t0, t1 := uint8(data[0]), uint8(data[1])
@@ -465,10 +492,14 @@ func (v *AudioSpecificConfig) UnmarshalBinary(data []byte) (err error) {
 	v.SampleRate = SampleRateIndex(((t0 << 1) & 0x0e) | ((t1 >> 7) & 0x01))
 	v.Channels = Channels((t1 >> 3) & 0x0f)
 
-	return
+	return v.validate()
 }
 
 func (v *AudioSpecificConfig) MarshalBinary() (data []byte, err error) {
+	if err = v.validate(); err != nil {
+		return
+	}
+
 	// AudioSpecificConfig
 	// Refer to @doc ISO_IEC_14496-3-AAC-2001.pdf, @page 33, @section 1.6.2.1 AudioSpecificConfig
 	//
