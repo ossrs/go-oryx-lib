@@ -404,32 +404,47 @@ func (v AudioCodec) String() string {
 	}
 }
 
-// The AAC used to codec the FLV audio tag body in AAC format.
+type AudioFrame struct {
+	SoundFormat AudioCodec
+	SoundRate   AudioSamplingRate
+	SoundSize   AudioSampleBits
+	SoundType   AudioChannels
+	Trait       AudioFrameTrait
+	Raw         []byte
+}
+
+// The packager used to codec the FLV audio tag body.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
-type AAC interface {
-	// Encode the AAC frame to FLV audio tag.
-	Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte) (tag []byte, err error)
-	// Decode the FLV audio tag to AAC frame.
-	Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte, err error)
+type AudioPackager interface {
+	// Encode the audio frame to FLV audio tag.
+	Encode(frame *AudioFrame) (tag []byte, err error)
+	// Decode the FLV audio tag to audio frame.
+	Decode(tag []byte) (frame *AudioFrame, err error)
 }
 
 var errDataNotEnough = errors.New("Data not enough")
 
-type aacCodec struct {
+type audioPackager struct {
 }
 
-func NewAAC() (AAC, error) {
-	return &aacCodec{}, nil
+func NewAudioPackager() (AudioPackager, error) {
+	return &audioPackager{}, nil
 }
 
-func (v *aacCodec) Encode(soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte) (tag []byte, err error) {
-	return append([]byte{
-		byte(soundFormat)<<4 | byte(soundRate)<<2 | byte(soundSize)<<1 | byte(soundType),
-		byte(trait),
-	}, frame...), nil
+func (v *audioPackager) Encode(frame *AudioFrame) (tag []byte, err error) {
+	if frame.SoundFormat == AudioCodecAAC {
+		return append([]byte{
+			byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
+			byte(frame.Trait),
+		}, frame.Raw...), nil
+	} else {
+		return append([]byte{
+			byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
+		}, frame.Raw...), nil
+	}
 }
 
-func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSamplingRate, soundSize AudioSampleBits, soundType AudioChannels, trait AudioFrameTrait, frame []byte, err error) {
+func (v *audioPackager) Decode(tag []byte) (frame *AudioFrame, err error) {
 	// Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
 	// @see SrsFormat::audio_aac_demux
 	if len(tag) < 2 {
@@ -438,13 +453,18 @@ func (v *aacCodec) Decode(tag []byte) (soundFormat AudioCodec, soundRate AudioSa
 	}
 
 	t := uint8(tag[0])
-	soundFormat = AudioCodec(uint8(t>>4) & 0x0f)
-	soundRate = AudioSamplingRate(uint8(t>>2) & 0x03)
-	soundSize = AudioSampleBits(uint8(t>>1) & 0x01)
-	soundType = AudioChannels(t & 0x01)
+	frame = &AudioFrame{}
+	frame.SoundFormat = AudioCodec(uint8(t>>4) & 0x0f)
+	frame.SoundRate = AudioSamplingRate(uint8(t>>2) & 0x03)
+	frame.SoundSize = AudioSampleBits(uint8(t>>1) & 0x01)
+	frame.SoundType = AudioChannels(t & 0x01)
 
-	trait = AudioFrameTrait(tag[1])
-	frame = tag[2:]
+	if frame.SoundFormat == AudioCodecAAC {
+		frame.Trait = AudioFrameTrait(tag[1])
+		frame.Raw = tag[2:]
+	} else {
+		frame.Raw = tag[1:]
+	}
 
 	return
 }
@@ -536,32 +556,62 @@ func (v VideoFrameTrait) String() string {
 	}
 }
 
-// The AVC used to codec the FLV video tag body in AVC(H.264) format.
+type VideoFrame struct {
+	CodecID   VideoCodec
+	FrameType VideoFrameType
+	Trait     VideoFrameTrait
+	CTS       int32
+	Raw       []byte
+}
+
+// The packager used to codec the FLV video tag body.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
-type AVC interface {
-	// Decode the FLV video tag to AVC frame.
+type VideoPackager interface {
+	// Decode the FLV video tag to video frame.
 	// @remark For RTMP/FLV: pts = dts + cts, where dts is timestamp in packet/tag.
-	Decode(tag []byte) (codecID VideoCodec, frameType VideoFrameType, trait VideoFrameTrait, cts int32, avc []byte, err error)
+	Decode(tag []byte) (frame *VideoFrame, err error)
+	// Encode the video frame to FLV video tag.
+	Encode(frame *VideoFrame) (tag []byte, err error)
 }
 
-type avc struct {
+type videoPackager struct {
 }
 
-func NewAVC() (AVC, error) {
-	return &avc{}, nil
+func NewVideoPackager() (VideoPackager, error) {
+	return &videoPackager{}, nil
 }
 
-func (v *avc) Decode(tag []byte) (codecID VideoCodec, frameType VideoFrameType, trait VideoFrameTrait, cts int32, avc []byte, err error) {
+func (v *videoPackager) Decode(tag []byte) (frame *VideoFrame, err error) {
 	if len(tag) < 5 {
 		err = errDataNotEnough
 		return
 	}
 
 	p := tag
-	frameType = VideoFrameType(byte(p[0]>>4) & 0x0f)
-	codecID = VideoCodec(byte(p[0]) & 0x0f)
-	trait = VideoFrameTrait(p[1])
-	cts = int32(uint32(p[2])<<16 | uint32(p[3])<<8 | uint32(p[4]))
+	frame = &VideoFrame{}
+	frame.FrameType = VideoFrameType(byte(p[0]>>4) & 0x0f)
+	frame.CodecID = VideoCodec(byte(p[0]) & 0x0f)
+
+	if frame.CodecID == VideoCodecAVC {
+		frame.Trait = VideoFrameTrait(p[1])
+		frame.CTS = int32(uint32(p[2])<<16 | uint32(p[3])<<8 | uint32(p[4]))
+		frame.Raw = tag[5:]
+	} else {
+		frame.Raw = tag[1:]
+	}
 
 	return
+}
+
+func (v videoPackager) Encode(frame *VideoFrame) (tag []byte, err error) {
+	if frame.CodecID == VideoCodecAVC {
+		return append([]byte{
+			byte(frame.FrameType)<<4 | byte(frame.CodecID), byte(frame.Trait),
+			byte(frame.CTS >> 16), byte(frame.CTS >> 8), byte(frame.CTS),
+		}, frame.Raw...), nil
+	} else {
+		return append([]byte{
+			byte(frame.FrameType)<<4 | byte(frame.CodecID),
+		}, frame.Raw...), nil
+	}
 }

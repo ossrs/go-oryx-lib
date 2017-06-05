@@ -8,7 +8,7 @@ The public library for [go-oryx](https://github.com/ossrs/go-oryx).
 
 The core library including:
 
-- [x] [logger](logger/example_test.go): Connection-Oriented logger for server.
+- [x] [logger](logger/example_test.go): Connection-Oriented logger for application server.
 - [x] [json](json/example_test.go): Json+ supports c and c++ style comments.
 - [x] [options](options/example_test.go): Frequently used service options with config file.
 - [x] [http](http/example_test.go): For http response with error, jsonp and std reponse.
@@ -17,9 +17,12 @@ The core library including:
 - [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [x] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
+- [x] [errors](errors/example_test.go): Fork from [pkg/errors](https://github.com/pkg/errors).
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
 - [ ] [aac](aac/example_test.go): The AAC utilities, for oryx.
 - [ ] [avc](avc/example_test.go): The AVC utilities, for oryx.
+
+> Remark: For library, please never use `logger`, use `errors` instead.
 
 Other audio/video libraries:
 

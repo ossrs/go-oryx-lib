@@ -194,6 +194,8 @@ func (v SampleRateIndex) ToHz() int {
 		44100, 32000, 24000, 22050,
 		16000, 12000, 11025, 8000,
 		7350, 0, 0, 0,
+		/* To avoid overflow by forbidden */
+		0,
 	}
 	return aacSR[v]
 }
