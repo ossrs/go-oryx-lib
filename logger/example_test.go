@@ -82,14 +82,14 @@ func ExampleLogger_SwitchFile() {
 
 // Each context is specified a connection,
 // which user must implement the interface.
-type context int
+type cidContext int
 
-func (v context) Cid() int {
+func (v cidContext) Cid() int {
 	return int(v)
 }
 
 func ExampleLogger_ConnectionBased() {
-	ctx := context(100)
+	ctx := cidContext(100)
 	ol.Info.Println(ctx, "The log text")
 	ol.Trace.Println(ctx, "The log text.")
 	ol.Warn.Println(ctx, "The log text.")

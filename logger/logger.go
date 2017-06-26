@@ -20,11 +20,21 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // The oryx logger package provides connection-oriented log service.
-//		logger.Info.Println(Context, ...)
-//		logger.Trace.Println(Context, ...)
-//		logger.Warn.Println(Context, ...)
-//		logger.Error.Println(Context, ...)
+//		logger.I(Context, ...)
+//		logger.T(Context, ...)
+//		logger.W(Context, ...)
+//		logger.E(Context, ...)
+// Or use format:
+//		logger.If(Context, format, ...)
+//		logger.Tf(Context, format, ...)
+//		logger.Wf(Context, format, ...)
+//		logger.Ef(Context, format, ...)
 // @remark the Context is optional thus can be nil.
+// @remark From 1.7+, the ctx could be context.Context from std library,
+//	however, we must use logger.WithContext to wrap it, for example,
+//		ctx,cancel := context.WithCancel(context.Background())
+//		ctx := logger.WithContext(ctx)
+//		ol.T(ctx, "log with context")
 package logger
 
 import (
@@ -43,9 +53,13 @@ const (
 	logErrorLabel = "[error] "
 )
 
-// the context for current goroutine.
-type Context interface {
-	// get current goroutine cid.
+// The context for current goroutine.
+// It maybe a cidContext or context.Context from GO1.7.
+// @remark Use logger.WithContext(ctx) to wrap the context.
+type Context interface{}
+
+// The context to get current coroutine cid.
+type cidContext interface {
 	Cid() int
 }
 
@@ -58,13 +72,13 @@ func NewLoggerPlus(l *log.Logger) Logger {
 	return &loggerPlus{logger: l}
 }
 
-func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
+func (v *loggerPlus) format(ctx Context, a ...interface{}) []interface{} {
 	if ctx == nil {
-		a = append([]interface{}{fmt.Sprintf("[%v]", os.Getpid())}, a...)
-	} else {
-		a = append([]interface{}{fmt.Sprintf("[%v][%v]", os.Getpid(), ctx.Cid())}, a...)
+		return append([]interface{}{fmt.Sprintf("[%v]", os.Getpid())}, a...)
+	} else if ctx, ok := ctx.(cidContext); ok {
+		return append([]interface{}{fmt.Sprintf("[%v][%v]", os.Getpid(), ctx.Cid())}, a...)
 	}
-	v.logger.Println(a...)
+	return a
 }
 
 // Info, the verbose info level, very detail log, the lowest level, to discard.
@@ -102,8 +116,10 @@ func E(ctx Context, a ...interface{}) {
 // The logger for oryx.
 type Logger interface {
 	// Println for logger plus,
-	// @param ctx the connection-oriented context, or nil to ignore.
+	// @param ctx the connection-oriented context,
+	// 	or context.Context from GO1.7, or nil to ignore.
 	Println(ctx Context, a ...interface{})
+	Printf(ctx Context, format string, a ...interface{})
 }
 
 func init() {
