@@ -71,11 +71,20 @@ func NewLoggerPlus(l *log.Logger) Logger {
 
 func (v *loggerPlus) format(ctx Context, a ...interface{}) []interface{} {
 	if ctx == nil {
-		return append([]interface{}{fmt.Sprintf("[%v]", os.Getpid())}, a...)
+		return append([]interface{}{fmt.Sprintf("[%v] ", os.Getpid())}, a...)
 	} else if ctx, ok := ctx.(cidContext); ok {
-		return append([]interface{}{fmt.Sprintf("[%v][%v]", os.Getpid(), ctx.Cid())}, a...)
+		return append([]interface{}{fmt.Sprintf("[%v][%v] ", os.Getpid(), ctx.Cid())}, a...)
 	}
 	return a
+}
+
+func (v *loggerPlus) formatf(ctx Context, format string, a ...interface{}) (string, []interface{}) {
+	if ctx == nil {
+		return "[%v] " + format, append([]interface{}{os.Getpid()}, a...)
+	} else if ctx, ok := ctx.(cidContext); ok {
+		return "[%v][%v] " + format, append([]interface{}{os.Getpid(), ctx.Cid()}, a...)
+	}
+	return format, a
 }
 
 // Info, the verbose info level, very detail log, the lowest level, to discard.

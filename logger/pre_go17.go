@@ -30,7 +30,7 @@ func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 }
 
 func (v *loggerPlus) Printf(ctx Context, format string, a ...interface{}) {
-	args := v.format(ctx, a...)
+	format, args := v.formatf(ctx, format, a...)
 	v.logger.Printf(format, args...)
 	return
 }

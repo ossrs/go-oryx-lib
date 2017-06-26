@@ -30,26 +30,37 @@ import (
 )
 
 func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
-	args := v.formatWithContext(ctx, a...)
+	args := v.contextFormat(ctx, a...)
 	v.logger.Println(args...)
 	return
 }
 
 func (v *loggerPlus) Printf(ctx Context, format string, a ...interface{}) {
-	args := v.formatWithContext(ctx, a...)
+	format, args := v.contextFormatf(ctx, format, a...)
 	v.logger.Printf(format, args...)
 	return
 }
 
-func (v *loggerPlus) formatWithContext(ctx Context, a ...interface{}) []interface{} {
+func (v *loggerPlus) contextFormat(ctx Context, a ...interface{}) []interface{} {
 	if ctx, ok := ctx.(context.Context); ok {
 		if cid, ok := ctx.Value(cidKey).(int); ok {
-			return append([]interface{}{fmt.Sprintf("[%v][%v]", os.Getpid(), cid)}, a...)
+			return append([]interface{}{fmt.Sprintf("[%v][%v] ", os.Getpid(), cid)}, a...)
 		}
 	} else {
 		return v.format(ctx, a...)
 	}
 	return a
+}
+
+func (v *loggerPlus) contextFormatf(ctx Context, format string, a ...interface{}) (string, []interface{}) {
+	if ctx, ok := ctx.(context.Context); ok {
+		if cid, ok := ctx.Value(cidKey).(int); ok {
+			return "[%v][%v] " + format, append([]interface{}{os.Getpid(), cid}, a...)
+		}
+	} else {
+		return v.formatf(ctx, format, a...)
+	}
+	return format, a
 }
 
 // User should use context with value to pass the cid.
