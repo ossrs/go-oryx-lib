@@ -38,6 +38,12 @@ func ExampleLogger_ToConsole() {
 	ol.T(nil, "The log text.")
 	ol.W(nil, "The log text.")
 	ol.E(nil, "The log text.")
+
+	// Use printf style log.
+	ol.If(nil, "The log %v", "text")
+	ol.Tf(nil, "The log %v", "text")
+	ol.Wf(nil, "The log %v", "text")
+	ol.Ef(nil, "The log %v", "text")
 }
 
 func ExampleLogger_ToFile() {

@@ -89,12 +89,22 @@ func I(ctx Context, a ...interface{}) {
 	Info.Println(ctx, a...)
 }
 
+// Printf for Info level log.
+func If(ctx Context, format string, a ...interface{}) {
+	Info.Printf(ctx, format, a...)
+}
+
 // Trace, the trace level, something important, the default log level, to stdout.
 var Trace Logger
 
 // Alias for Trace level println.
 func T(ctx Context, a ...interface{}) {
 	Trace.Println(ctx, a...)
+}
+
+// Printf for Trace level log.
+func Tf(ctx Context, format string, a ...interface{}) {
+	Trace.Printf(ctx, format, a...)
 }
 
 // Warn, the warning level, dangerous information, to stderr.
@@ -105,12 +115,22 @@ func W(ctx Context, a ...interface{}) {
 	Warn.Println(ctx, a...)
 }
 
+// Printf for Warn level log.
+func Wf(ctx Context, format string, a ...interface{}) {
+	Warn.Printf(ctx, format, a...)
+}
+
 // Error, the error level, fatal error things, ot stderr.
 var Error Logger
 
 // Alias for Error level println.
 func E(ctx Context, a ...interface{}) {
 	Error.Println(ctx, a...)
+}
+
+// Printf for Error level log.
+func Ef(ctx Context, format string, a ...interface{}) {
+	Error.Printf(ctx, format, a...)
 }
 
 // The logger for oryx.
