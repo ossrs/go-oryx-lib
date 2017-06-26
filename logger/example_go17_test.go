@@ -30,10 +30,13 @@ import (
 
 func ExampleLogger_ContextGO17() {
 	ctx := context.Background()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	func(ctx context.Context) {
+	// We must wrap the context.
+	// For each coroutine or request, we must use a context.
+	go func(ctx context.Context) {
 		ol.T(ctx, "Log with context")
 
 		ctx, cancel := context.WithCancel(ctx)
@@ -42,8 +45,33 @@ func ExampleLogger_ContextGO17() {
 			ol.T(ctx, "Log in child function")
 		}(ctx)
 	}(ol.WithContext(ctx))
+}
 
-	func(ctx context.Context) {
+func ExampleLogger_MultipleContextGO17() {
+	ctx := context.Background()
+
+	pfn := func(ctx context.Context) {
 		ol.T(ctx, "Log with context")
-	}(ol.WithContext(ctx))
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		func(ctx context.Context) {
+			ol.T(ctx, "Log in child function")
+		}(ctx)
+	}
+
+	// We must wrap the context.
+	// For each coroutine or request, we must use a context.
+	func(ctx context.Context) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go pfn(ol.WithContext(ctx))
+	}(ctx)
+
+	// Another goroutine, use another context if they aren't in the same scope.
+	func(ctx context.Context) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go pfn(ol.WithContext(ctx))
+	}(ctx)
 }
