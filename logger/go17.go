@@ -31,14 +31,12 @@ import (
 
 func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 	args := v.contextFormat(ctx, a...)
-	v.logger.Println(args...)
-	return
+	v.doPrintln(args...)
 }
 
 func (v *loggerPlus) Printf(ctx Context, format string, a ...interface{}) {
 	format, args := v.contextFormatf(ctx, format, a...)
-	v.logger.Printf(format, args...)
-	return
+	v.doPrintf(format, args...)
 }
 
 func (v *loggerPlus) contextFormat(ctx Context, a ...interface{}) []interface{} {

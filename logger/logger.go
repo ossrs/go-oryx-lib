@@ -87,6 +87,46 @@ func (v *loggerPlus) formatf(ctx Context, format string, a ...interface{}) (stri
 	return format, a
 }
 
+var colorYellow = "\033[33m"
+var colorRed = "\033[31m"
+var colorBlack = "\033[0m"
+
+func (v *loggerPlus) doPrintln(args ...interface{}) {
+	if previousIo == nil {
+		if v == Error {
+			fmt.Fprintf(os.Stderr, colorRed)
+			v.logger.Println(args...)
+			fmt.Fprintf(os.Stderr, colorBlack)
+		} else if v == Warn {
+			fmt.Fprintf(os.Stderr, colorYellow)
+			v.logger.Println(args...)
+			fmt.Fprintf(os.Stderr, colorBlack)
+		} else {
+			v.logger.Println(args...)
+		}
+	} else {
+		v.logger.Println(args...)
+	}
+}
+
+func (v *loggerPlus) doPrintf(format string, args ...interface{}) {
+	if previousIo == nil {
+		if v == Error {
+			fmt.Fprintf(os.Stderr, colorRed)
+			v.logger.Printf(format, args...)
+			fmt.Fprintf(os.Stderr, colorBlack)
+		} else if v == Warn {
+			fmt.Fprintf(os.Stderr, colorYellow)
+			v.logger.Printf(format, args...)
+			fmt.Fprintf(os.Stderr, colorBlack)
+		} else {
+			v.logger.Printf(format, args...)
+		}
+	} else {
+		v.logger.Printf(format, args...)
+	}
+}
+
 // Info, the verbose info level, very detail log, the lowest level, to discard.
 var Info Logger
 

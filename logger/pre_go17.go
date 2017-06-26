@@ -25,12 +25,10 @@ package logger
 
 func (v *loggerPlus) Println(ctx Context, a ...interface{}) {
 	args := v.format(ctx, a...)
-	v.logger.Println(args...)
-	return
+	v.doPrintln(args...)
 }
 
 func (v *loggerPlus) Printf(ctx Context, format string, a ...interface{}) {
 	format, args := v.formatf(ctx, format, a...)
-	v.logger.Printf(format, args...)
-	return
+	v.doPrintf(format, args...)
 }
