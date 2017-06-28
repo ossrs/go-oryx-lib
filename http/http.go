@@ -195,6 +195,11 @@ func WriteData(ctx ol.Context, w http.ResponseWriter, r *http.Request, v interfa
 	Data(ctx, v).ServeHTTP(w, r)
 }
 
+// Directly write success json response, same to WriteData(ctx, w, r, nil).
+func Success(ctx ol.Context, w http.ResponseWriter, r *http.Request) {
+	WriteData(ctx, w, r, nil)
+}
+
 // Directly write error, a wrapper for Error().
 // @remark user can use Error() for group of complex apis.
 func WriteError(ctx ol.Context, w http.ResponseWriter, r *http.Request, err error) {

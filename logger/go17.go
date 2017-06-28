@@ -73,3 +73,11 @@ func WithContext(ctx context.Context) context.Context {
 	gCid += 1
 	return context.WithValue(ctx, cidKey, gCid)
 }
+
+// Create context with value from parent, copy the cid from source context.
+func CopyContext(parent context.Context, source context.Context) context.Context {
+	if cid, ok := source.Value(cidKey).(int); ok {
+		return context.WithValue(parent, cidKey, cid)
+	}
+	return WithContext(parent)
+}
