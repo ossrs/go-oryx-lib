@@ -34,6 +34,9 @@ func ExampleLogger_ContextGO17() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Wrap the context, to support CID.
+	ctx = ol.WithContext(ctx)
+
 	// We must wrap the context.
 	// For each coroutine or request, we must use a context.
 	go func(ctx context.Context) {
@@ -44,7 +47,7 @@ func ExampleLogger_ContextGO17() {
 		func(ctx context.Context) {
 			ol.T(ctx, "Log in child function")
 		}(ctx)
-	}(ol.WithContext(ctx))
+	}(ctx)
 }
 
 func ExampleLogger_MultipleContextGO17() {
@@ -65,14 +68,20 @@ func ExampleLogger_MultipleContextGO17() {
 	func(ctx context.Context) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		go pfn(ol.WithContext(ctx))
+
+		// Wrap the context, to support CID.
+		ctx = ol.WithContext(ctx)
+		go pfn(ctx)
 	}(ctx)
 
 	// Another goroutine, use another context if they aren't in the same scope.
 	func(ctx context.Context) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		go pfn(ol.WithContext(ctx))
+
+		// Wrap the context, to support CID.
+		ctx = ol.WithContext(ctx)
+		go pfn(ctx)
 	}(ctx)
 }
 
