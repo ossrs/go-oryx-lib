@@ -94,13 +94,13 @@ var colorBlack = "\033[0m"
 func (v *loggerPlus) doPrintln(args ...interface{}) {
 	if previousIo == nil {
 		if v == Error {
-			fmt.Fprintf(os.Stderr, colorRed)
+			fmt.Fprintf(os.Stdout, colorRed)
 			v.logger.Println(args...)
-			fmt.Fprintf(os.Stderr, colorBlack)
+			fmt.Fprintf(os.Stdout, colorBlack)
 		} else if v == Warn {
-			fmt.Fprintf(os.Stderr, colorYellow)
+			fmt.Fprintf(os.Stdout, colorYellow)
 			v.logger.Println(args...)
-			fmt.Fprintf(os.Stderr, colorBlack)
+			fmt.Fprintf(os.Stdout, colorBlack)
 		} else {
 			v.logger.Println(args...)
 		}
@@ -112,13 +112,13 @@ func (v *loggerPlus) doPrintln(args ...interface{}) {
 func (v *loggerPlus) doPrintf(format string, args ...interface{}) {
 	if previousIo == nil {
 		if v == Error {
-			fmt.Fprintf(os.Stderr, colorRed)
+			fmt.Fprintf(os.Stdout, colorRed)
 			v.logger.Printf(format, args...)
-			fmt.Fprintf(os.Stderr, colorBlack)
+			fmt.Fprintf(os.Stdout, colorBlack)
 		} else if v == Warn {
-			fmt.Fprintf(os.Stderr, colorYellow)
+			fmt.Fprintf(os.Stdout, colorYellow)
 			v.logger.Printf(format, args...)
-			fmt.Fprintf(os.Stderr, colorBlack)
+			fmt.Fprintf(os.Stdout, colorBlack)
 		} else {
 			v.logger.Printf(format, args...)
 		}
@@ -153,7 +153,7 @@ func Tf(ctx Context, format string, a ...interface{}) {
 	Trace.Printf(ctx, format, a...)
 }
 
-// Warn, the warning level, dangerous information, to stderr.
+// Warn, the warning level, dangerous information, to Stdout.
 var Warn Logger
 
 // Alias for Warn level println.
@@ -166,7 +166,7 @@ func Wf(ctx Context, format string, a ...interface{}) {
 	Warn.Printf(ctx, format, a...)
 }
 
-// Error, the error level, fatal error things, ot stderr.
+// Error, the error level, fatal error things, ot Stdout.
 var Error Logger
 
 // Alias for Error level println.
@@ -191,8 +191,8 @@ type Logger interface {
 func init() {
 	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Trace = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
-	Warn = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
-	Error = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Warn = NewLoggerPlus(log.New(os.Stdout, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Error = NewLoggerPlus(log.New(os.Stdout, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 }
 
 // Switch the underlayer io.
