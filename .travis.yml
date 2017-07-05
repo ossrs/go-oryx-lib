@@ -7,10 +7,7 @@ before_install:
   - go get -t -v ./...
 
 script:
-  - mkdir -p coverage
-  - go test github.com/ossrs/go-oryx-lib/aac -race -coverprofile=coverage.txt -covermode=atomic
-  - go test github.com/ossrs/go-oryx-lib/amf0 -race -coverprofile=coverage/amf0.txt -covermode=atomic
-  - tail -q -n +2 ./coverage/*.txt >> coverage.txt
+  - bash auto/test.sh && bash auto/cover.sh
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)

@@ -27,6 +27,5 @@ _testmain.go
 *.prof
 
 # Coverage files
-coverage
 *.txt
 
