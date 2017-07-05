@@ -1,6 +1,7 @@
 # go-oryx-lib
 
-[![CircleCI](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master.svg?style=svg&circle-token=6c8eac51700e7c8a4b64b714b3ce5775b518fd15)](https://circleci.com/gh/ossrs/go-oryx-lib/tree/master)
+[![Build Status](https://travis-ci.org/ossrs/go-oryx-lib.svg?branch=master)](https://travis-ci.org/ossrs/go-oryx-lib)
+[![codecov](https://codecov.io/gh/ossrs/go-oryx-lib/branch/master/graph/badge.svg)](https://codecov.io/gh/ossrs/go-oryx-lib)
 
 This library is exported by server [go-oryx](https://github.com/ossrs/go-oryx).
 
