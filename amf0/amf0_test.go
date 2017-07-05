@@ -85,7 +85,7 @@ func TestDiscovery(t *testing.T) {
 
 func TestDiscovery2(t *testing.T) {
 	pvs := []byte{
-		11, 12, 13, 15,
+		7, 11, 12, 13, 15,
 		16, 17, 4,
 		14,
 
@@ -202,6 +202,7 @@ func TestAmf0Number_UnmarshalBinary(t *testing.T) {
 func TestAmf0Number_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
 		nil, []byte{}, []byte{0}, []byte{0, 1, 2, 3, 4, 5, 6, 7},
+		[]byte{1},
 	}
 	for _, pv := range pvs {
 		v := Number(0)
@@ -259,6 +260,7 @@ func TestAmf0String_UnmarshalBinary(t *testing.T) {
 func TestAmf0String_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
 		nil, []byte{}, []byte{0, 0},
+		[]byte{2, 0},
 	}
 	for _, pv := range pvs {
 		v := String("")
@@ -459,5 +461,24 @@ func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
 		if err := v.unmarshal(pv.b, pv.eof, pv.maxElems); err == nil {
 			t.Errorf("should error for %v", pv)
 		}
+	}
+}
+
+func TestAmf0ObjectBase_Get(t *testing.T) {
+	o := &objectBase{}
+	if v := o.Get("key"); v != nil {
+		t.Errorf("should nil, actual %v", v)
+	}
+}
+
+func TestAmf0ObjectBase_Set(t *testing.T) {
+	o := &objectBase{}
+	o.Set("key", NewString("name")).Set("key", NewString("age"))
+	if v := o.Get("key"); v == nil {
+		t.Error("invalid key")
+	} else if v, ok := v.(*String); !ok {
+		t.Error("invalid key")
+	} else if string(*v) != "age" {
+		t.Errorf("invalid value %v", string(*v))
 	}
 }

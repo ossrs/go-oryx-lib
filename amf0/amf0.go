@@ -144,10 +144,8 @@ func Discovery(p []byte) (a Amf0, err error) {
 		markerTypedObject, markerAvmPlusObject, markerForbidden, markerMovieClip,
 		markerRecordSet:
 		return nil, oe.Errorf("Marker %v is not supported", m)
-	default:
-		return nil, oe.Errorf("Marker %v is invalid", m)
 	}
-	return nil, oe.Errorf("Invalid %v", m)
+	return nil, oe.Errorf("Marker %v is invalid", m)
 }
 
 // The UTF8 string, please read @doc amf0_spec_121207.pdf, @page 3, @section 1.3.1 Strings and UTF-8
