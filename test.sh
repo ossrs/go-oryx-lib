@@ -9,7 +9,7 @@ fi
 echo "mode: atomic" > coverage.txt
 
 function coverage() {
-    go test $0 -race -coverprofile=tmp.txt -covermode=atomic
+    go test $1 -race -coverprofile=tmp.txt -covermode=atomic
     ret=$?; if [[ $ret -eq 0 ]]; then
         cat tmp.txt >> coverage.txt
         rm -f tmp.txt
