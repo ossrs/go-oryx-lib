@@ -17,9 +17,9 @@ The library provides packages about network and multiple media processing:
 - [x] [https](https/example_test.go): For https server over [lego/acme](https://github.com/xenolf/lego/tree/master/acme) of [letsencrypt](https://letsencrypt.org/).
 - [x] [gmoryx](gmoryx/README.md): A [gomobile](https://github.com/golang/mobile) API for go-oryx-lib.
 - [x] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
-- [x] [errors](errors/example_test.go): Fork from [pkg/errors](https://github.com/pkg/errors).
-- [x] [aac](aac/example_test.go): The AAC utilities, for oryx.
-- [ ] [avc](avc/example_test.go): The AVC utilities, for oryx.
+- [x] [errors](errors/example_test.go): Fork from [pkg/errors](https://github.com/pkg/errors), a complex error with message and stack, read [article](https://gocn.io/article/348).
+- [x] [aac](aac/example_test.go): The AAC utilities to demux and mux AAC RAW data, for oryx.
+- [ ] [avc](avc/example_test.go): The AVC utilities to demux and mux AVC RAW data, for oryx.
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
 
 > Remark: For library, please never use `logger`, use `errors` instead.
