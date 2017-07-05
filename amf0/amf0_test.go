@@ -53,3 +53,27 @@ func TestAmf0Marker(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscovery(t *testing.T) {
+	pvs := []struct{
+		m marker
+		mv byte
+	}{
+		{markerNumber, 0},
+		{markerBoolean, 1},
+		{markerString, 2},
+		{markerObject, 3},
+		{markerNull, 5},
+		{markerUndefined, 6},
+		{markerEcmaArray, 8},
+		{markerObjectEnd, 9},
+		{markerStrictArray, 10},
+	}
+	for _,pv := range pvs {
+		if m,err := Discovery([]byte{pv.mv}); err != nil {
+			t.Errorf("discovery err %+v", err)
+		} else if v := m.amf0Marker(); v != pv.m {
+			t.Errorf("invalid %v expect %v actual %v", pv.mv, pv.m, v)
+		}
+	}
+}
