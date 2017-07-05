@@ -21,11 +21,16 @@
 
 package amf0
 
-import "testing"
+import (
+	"bytes"
+	"encoding"
+	oe "github.com/ossrs/go-oryx-lib/errors"
+	"testing"
+)
 
 func TestAmf0Marker(t *testing.T) {
 	pvs := []struct {
-		m marker
+		m  marker
 		ms string
 	}{
 		{markerNumber, "Number"},
@@ -47,7 +52,7 @@ func TestAmf0Marker(t *testing.T) {
 		{markerMovieClip, "MovieClip"},
 		{markerRecordSet, "RecordSet"},
 	}
-	for _,pv := range pvs {
+	for _, pv := range pvs {
 		if v := pv.m.String(); v != pv.ms {
 			t.Errorf("marker %v expect %v actual %v", pv.m, pv.ms, v)
 		}
@@ -55,8 +60,8 @@ func TestAmf0Marker(t *testing.T) {
 }
 
 func TestDiscovery(t *testing.T) {
-	pvs := []struct{
-		m marker
+	pvs := []struct {
+		m  marker
 		mv byte
 	}{
 		{markerNumber, 0},
@@ -69,11 +74,390 @@ func TestDiscovery(t *testing.T) {
 		{markerObjectEnd, 9},
 		{markerStrictArray, 10},
 	}
-	for _,pv := range pvs {
-		if m,err := Discovery([]byte{pv.mv}); err != nil {
+	for _, pv := range pvs {
+		if m, err := Discovery([]byte{pv.mv}); err != nil {
 			t.Errorf("discovery err %+v", err)
 		} else if v := m.amf0Marker(); v != pv.m {
 			t.Errorf("invalid %v expect %v actual %v", pv.mv, pv.m, v)
+		}
+	}
+}
+
+func TestDiscovery2(t *testing.T) {
+	pvs := []byte{
+		11, 12, 13, 15,
+		16, 17, 4,
+		14,
+
+		18, 0xff,
+	}
+	for _, pv := range pvs {
+		if m, err := Discovery([]byte{pv}); err == nil {
+			t.Errorf("marker=%v should error", pv)
+		} else if m != nil {
+			t.Errorf("should nil for %v", pv)
+		}
+	}
+}
+
+func TestAmf0UTF8_Size(t *testing.T) {
+	if v := amf0UTF8(""); v.Size() != 2 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+	if v := amf0UTF8("oryx"); v.Size() != 2+4 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0UTF8_MarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v string
+	}{
+		{[]byte{0, 0}, ""},
+		{[]byte{0, 4, 0x6f, 0x72, 0x79, 0x78}, "oryx"},
+	}
+	for _, pv := range pvs {
+		v := amf0UTF8(pv.v)
+		if b, err := v.MarshalBinary(); err != nil {
+			t.Errorf("marshal %v err %+v", pv.v, err)
+		} else if bytes.Compare(b, pv.b) != 0 {
+			t.Errorf("invalid data %v expect %v actual %v", pv.v, pv.b, b)
+		}
+	}
+}
+
+func TestAmf0UTF8_UnmarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v string
+	}{
+		{[]byte{0, 0}, ""},
+		{[]byte{0, 4, 0x6f, 0x72, 0x79, 0x78}, "oryx"},
+	}
+	for _, pv := range pvs {
+		v := amf0UTF8("")
+		if err := v.UnmarshalBinary(pv.b); err != nil {
+			t.Errorf("unmarshal %v err %+v", pv.b, err)
+		} else if string(v) != pv.v {
+			t.Errorf("invalid %v expect %v actual %v", pv.b, pv.v, string(v))
+		}
+	}
+}
+
+func TestAmf0UTF8_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0}, []byte{0, 1},
+	}
+	for _, pv := range pvs {
+		v := amf0UTF8("")
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0Number_Size(t *testing.T) {
+	if v := Number(0); v.Size() != 1+8 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0Number_MarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v float64
+	}{
+		{[]byte{0, 0x3f, 0x84, 0x7a, 0xe1, 0x47, 0xae, 0x14, 0x7b}, 0.01},
+		{[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0}, 0.0},
+	}
+	for _, pv := range pvs {
+		v := Number(pv.v)
+		if b, err := v.MarshalBinary(); err != nil {
+			t.Errorf("marshal %v err %+v", pv.v, err)
+		} else if bytes.Compare(b, pv.b) != 0 {
+			t.Errorf("invalid data %v expect %v actual %v", pv.v, pv.b, b)
+		}
+	}
+}
+
+func TestAmf0Number_UnmarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v float64
+	}{
+		{[]byte{0, 0x3f, 0x84, 0x7a, 0xe1, 0x47, 0xae, 0x14, 0x7b}, 0.01},
+		{[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0}, 0.0},
+	}
+	for _, pv := range pvs {
+		v := Number(0)
+		if err := v.UnmarshalBinary(pv.b); err != nil {
+			t.Errorf("unmarshal %v err %+v", pv.b, err)
+		} else if float64(v) != pv.v {
+			t.Errorf("invalid %v expect %v actual %v", pv.b, pv.v, float64(v))
+		}
+	}
+}
+
+func TestAmf0Number_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0}, []byte{0, 1, 2, 3, 4, 5, 6, 7},
+	}
+	for _, pv := range pvs {
+		v := Number(0)
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0String_Size(t *testing.T) {
+	if v := String(""); v.Size() != 1+2 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+	if v := String("oryx"); v.Size() != 1+2+4 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0String_MarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v string
+	}{
+		{[]byte{2, 0, 0}, ""},
+		{[]byte{2, 0, 4, 0x6f, 0x72, 0x79, 0x78}, "oryx"},
+	}
+	for _, pv := range pvs {
+		v := String(pv.v)
+		if b, err := v.MarshalBinary(); err != nil {
+			t.Errorf("marshal %v err %+v", pv.v, err)
+		} else if bytes.Compare(b, pv.b) != 0 {
+			t.Errorf("invalid data %v expect %v actual %v", pv.v, pv.b, b)
+		}
+	}
+}
+
+func TestAmf0String_UnmarshalBinary(t *testing.T) {
+	pvs := []struct {
+		b []byte
+		v string
+	}{
+		{[]byte{2, 0, 0}, ""},
+		{[]byte{2, 0, 4, 0x6f, 0x72, 0x79, 0x78}, "oryx"},
+	}
+	for _, pv := range pvs {
+		v := String("")
+		if err := v.UnmarshalBinary(pv.b); err != nil {
+			t.Errorf("unmarshal %v err %+v", pv.b, err)
+		} else if string(v) != pv.v {
+			t.Errorf("invalid %v expect %v actual %v", pv.b, pv.v, string(v))
+		}
+	}
+}
+
+func TestAmf0String_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0, 0},
+	}
+	for _, pv := range pvs {
+		v := String("")
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0ObjectEOF_Size(t *testing.T) {
+	v := objectEOF{}
+	if v.Size() != 3 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0ObjectEOF_MarshalBinary(t *testing.T) {
+	v := objectEOF{}
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("unmarshal err %+v", err)
+	} else if bytes.Compare(b, []byte{0, 0, 9}) != 0 {
+		t.Errorf("invalid bytes %v", b)
+	}
+}
+
+func TestAmf0ObjectEOF_UnmarshalBinary(t *testing.T) {
+	v := objectEOF{}
+	if err := v.UnmarshalBinary([]byte{0, 0, 9}); err != nil {
+		t.Errorf("unmarshal err %+v", err)
+	}
+}
+
+func TestAmf0ObjectEOF_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0, 0}, []byte{0, 0, 8},
+	}
+	for _, pv := range pvs {
+		v := objectEOF{}
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+type sizer interface {
+	Size() int
+}
+
+func sizeof(vs ...sizer) int {
+	var size int
+	for _, v := range vs {
+		size += v.Size()
+	}
+	return size
+}
+
+func TestAmf0ObjectBase_Size(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+	cnk := amf0UTF8("years")
+	cn := NewNumber(4)
+	cbk := amf0UTF8("alive")
+	cb := NewBoolean(true)
+
+	pvs := []struct {
+		set  func(o *objectBase)
+		size int
+		err  error
+	}{
+		{func(o *objectBase) {}, 0, oe.New("empty")},
+		{func(o *objectBase) { o.Set(string(csk), cs) }, csk.Size() + cs.Size(), oe.New("one")},
+		{func(o *objectBase) {
+			o.Set(string(csk), cs).Set(string(cnk), cn)
+		}, sizeof(&csk, cs, &cnk, cn), oe.New("two")},
+		{func(o *objectBase) {
+			o.Set(string(csk), cs).Set(string(cnk), cn).Set(string(cbk), cb)
+		}, sizeof(&csk, cs, &cnk, cn, &cbk, cb), oe.New("three")},
+	}
+
+	for _, pv := range pvs {
+		o := objectBase{}
+		pv.set(&o)
+		if v := o.Size(); v != pv.size {
+			t.Errorf("invalid size %v expect %v err %+v", v, pv.size, pv.err)
+		}
+	}
+}
+
+func concat(vs ...encoding.BinaryMarshaler) []byte {
+	b := &bytes.Buffer{}
+	for _, v := range vs {
+		if vb, err := v.MarshalBinary(); err != nil {
+			panic(err)
+		} else {
+			if _, err = b.Write(vb); err != nil {
+				panic(err)
+			}
+		}
+	}
+	return b.Bytes()
+}
+
+func TestAmf0ObjectBase_MarshalBinary(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+	cnk := amf0UTF8("years")
+	cn := NewNumber(4)
+	cbk := amf0UTF8("alive")
+	cb := NewBoolean(true)
+
+	pvs := []struct {
+		set func(o *objectBase)
+		v   []byte
+		err error
+	}{
+		{func(o *objectBase) {}, []byte{}, oe.New("empty")},
+		{func(o *objectBase) { o.Set(string(csk), cs) }, concat(&csk, cs), oe.New("one")},
+		{func(o *objectBase) {
+			o.Set(string(csk), cs).Set(string(cnk), cn)
+		}, concat(&csk, cs, &cnk, cn), oe.New("two")},
+		{func(o *objectBase) {
+			o.Set(string(csk), cs).Set(string(cnk), cn).Set(string(cbk), cb)
+		}, concat(&csk, cs, &cnk, cn, &cbk, cb), oe.New("three")},
+	}
+	for _, pv := range pvs {
+		b := &bytes.Buffer{}
+		o := objectBase{}
+		pv.set(&o)
+		if err := o.marshal(b); err != nil {
+			t.Errorf("marshal err %+v", err)
+		} else if bytes.Compare(b.Bytes(), pv.v) != 0 {
+			t.Errorf("invalid expect %v actual %v err %+v", pv.v, b.Bytes(), pv.err)
+		}
+	}
+}
+
+func TestAmf0ObjectBase_UnmarshalBinary(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+	cnk := amf0UTF8("years")
+	cn := NewNumber(4)
+	cbk := amf0UTF8("alive")
+	cb := NewBoolean(true)
+	eof := &objectEOF{}
+
+	pvs := []struct {
+		b        []byte
+		eof      bool
+		maxElems int
+		compare  func(o *objectBase) bool
+		err      error
+	}{
+		{[]byte{}, true, -1, func(o *objectBase) bool { return true }, oe.New("empty")},
+		{concat(eof), true, -1, func(o *objectBase) bool { return true }, oe.New("eof")},
+		{concat(&csk, cs, eof), true, -1, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil
+		}, oe.New("one")},
+		{concat(&csk, cs, &cnk, cn, eof), true, -1, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil && o.Get(string(cnk)) != nil
+		}, oe.New("two")},
+		{concat(&csk, cs, &cnk, cn, &cbk, cb, eof), true, -1, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil && o.Get(string(cnk)) != nil && o.Get(string(cbk)) != nil
+		}, oe.New("two")},
+		{concat(&csk, cs), false, 1, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil
+		}, oe.New("one")},
+		{concat(&csk, cs, &cnk, cn), false, 2, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil && o.Get(string(cnk)) != nil
+		}, oe.New("two")},
+		{concat(&csk, cs, &cnk, cn, &cbk, cb), false, 3, func(o *objectBase) bool {
+			return o.Get(string(csk)) != nil && o.Get(string(cnk)) != nil && o.Get(string(cbk)) != nil
+		}, oe.New("two")},
+	}
+	for _, pv := range pvs {
+		v := &objectBase{}
+		if err := v.unmarshal(pv.b, pv.eof, pv.maxElems); err != nil {
+			t.Errorf("unmarshal %v err %+v", pv.b, err)
+		} else if !pv.compare(v) {
+			t.Errorf("invalid object err %+v", pv.err)
+		}
+	}
+}
+
+func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
+	pvs := []struct {
+		b        []byte
+		eof      bool
+		maxElems int
+	}{
+		{[]byte{}, false, 0},
+		{[]byte{}, true, 1},
+		{[]byte{0}, true, -1},
+		{[]byte{0, 0}, true, -1},
+		{[]byte{0, 0, 0}, true, -1},
+	}
+	for _, pv := range pvs {
+		v := &objectBase{}
+		if err := v.unmarshal(pv.b, pv.eof, pv.maxElems); err == nil {
+			t.Errorf("should error for %v", pv)
 		}
 	}
 }

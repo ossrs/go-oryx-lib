@@ -26,9 +26,8 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"io"
+	oe "github.com/ossrs/go-oryx-lib/errors"
 	"math"
 	"sync"
 )
@@ -37,24 +36,24 @@ import (
 type marker uint8
 
 const (
-	markerNumber marker = iota
-	markerBoolean
-	markerString
-	markerObject
-	markerMovieClip
-	markerNull
-	markerUndefined
-	markerReference
-	markerEcmaArray
-	markerObjectEnd
-	markerStrictArray
-	markerDate
-	markerLongString
-	markerUnsupported
-	markerRecordSet
-	markerXmlDocument
-	markerTypedObject
-	markerAvmPlusObject
+	markerNumber        marker = iota // 0
+	markerBoolean                     // 1
+	markerString                      // 2
+	markerObject                      // 3
+	markerMovieClip                   // 4
+	markerNull                        // 5
+	markerUndefined                   // 6
+	markerReference                   // 7
+	markerEcmaArray                   // 8
+	markerObjectEnd                   // 9
+	markerStrictArray                 // 10
+	markerDate                        // 11
+	markerLongString                  // 12
+	markerUnsupported                 // 13
+	markerRecordSet                   // 14
+	markerXmlDocument                 // 15
+	markerTypedObject                 // 16
+	markerAvmPlusObject               // 17
 
 	markerForbidden marker = 0xff
 )
@@ -102,8 +101,6 @@ func (v marker) String() string {
 	}
 }
 
-var errDataNotEnough = errors.New("data is not enough")
-
 // All AMF0 things.
 type Amf0 interface {
 	// Binary marshaler and unmarshaler.
@@ -119,7 +116,7 @@ type Amf0 interface {
 // Discovery the amf0 object from the bytes b.
 func Discovery(p []byte) (a Amf0, err error) {
 	if len(p) < 1 {
-		return nil, errDataNotEnough
+		return nil, oe.Errorf("require 1 bytes only %v", len(p))
 	}
 	m := marker(p[0])
 
@@ -127,7 +124,7 @@ func Discovery(p []byte) (a Amf0, err error) {
 	case markerNumber:
 		return NewNumber(0), nil
 	case markerBoolean:
-		return newBoolean(false), nil
+		return NewBoolean(false), nil
 	case markerString:
 		return NewString(""), nil
 	case markerObject:
@@ -143,19 +140,14 @@ func Discovery(p []byte) (a Amf0, err error) {
 		return &objectEOF{}, nil
 	case markerStrictArray:
 		return NewStrictArray(), nil
-	case markerDate:
-	case markerLongString:
-	case markerUnsupported:
-	case markerXmlDocument:
-	case markerTypedObject:
-	case markerAvmPlusObject:
-	case markerForbidden, markerMovieClip, markerRecordSet:
-		fallthrough
+	case markerDate, markerLongString, markerUnsupported, markerXmlDocument,
+		markerTypedObject, markerAvmPlusObject, markerForbidden, markerMovieClip,
+		markerRecordSet:
+		return nil, oe.Errorf("Marker %v is not supported", m)
 	default:
-		return nil, fmt.Errorf("Marker %v is illegal", m)
+		return nil, oe.Errorf("Marker %v is invalid", m)
 	}
-
-	return nil, fmt.Errorf("%v is not supported", m)
+	return nil, oe.Errorf("Invalid %v", m)
 }
 
 // The UTF8 string, please read @doc amf0_spec_121207.pdf, @page 3, @section 1.3.1 Strings and UTF-8
@@ -168,12 +160,12 @@ func (v *amf0UTF8) Size() int {
 func (v *amf0UTF8) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 2 {
-		return errDataNotEnough
+		return oe.Errorf("require 2 bytes only %v", len(p))
 	}
 	size := uint16(p[0])<<8 | uint16(p[1])
 
 	if p = data[2:]; len(p) < int(size) {
-		return errDataNotEnough
+		return oe.Errorf("require %v bytes only %v", int(size), len(p))
 	}
 	*v = amf0UTF8(string(p[:size]))
 
@@ -213,10 +205,10 @@ func (v *Number) Size() int {
 func (v *Number) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 9 {
-		return errDataNotEnough
+		return oe.Errorf("require 9 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerNumber {
-		return fmt.Errorf("Number marker %v is illegal", m)
+		return oe.Errorf("Number marker %v is illegal", m)
 	}
 
 	f := binary.BigEndian.Uint64(p[1:])
@@ -252,15 +244,15 @@ func (v *String) Size() int {
 func (v *String) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 1 {
-		return errDataNotEnough
+		return oe.Errorf("require 1 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerString {
-		return fmt.Errorf("String marker %v is illegal", m)
+		return oe.Errorf("String marker %v is illegal", m)
 	}
 
 	var sv amf0UTF8
 	if err = sv.UnmarshalBinary(p[1:]); err != nil {
-		return
+		return oe.WithMessage(err, "utf8")
 	}
 	*v = String(string(sv))
 	return
@@ -271,7 +263,7 @@ func (v *String) MarshalBinary() (data []byte, err error) {
 
 	var pb []byte
 	if pb, err = u.MarshalBinary(); err != nil {
-		return
+		return nil, oe.WithMessage(err, "utf8")
 	}
 
 	data = append([]byte{byte(markerString)}, pb...)
@@ -291,9 +283,14 @@ func (v *objectEOF) Size() int {
 }
 
 func (v *objectEOF) UnmarshalBinary(data []byte) (err error) {
-	var p []byte
+	p := data
+
+	if len(p) < 3 {
+		return oe.Errorf("require 3 bytes only %v", len(p))
+	}
+
 	if p[0] != 0 || p[1] != 0 || p[2] != 9 {
-		return fmt.Errorf("EOF marker %v is illegal", p[0:3])
+		return oe.Errorf("EOF marker %v is illegal", p[0:3])
 	}
 	return
 }
@@ -341,7 +338,7 @@ func (v *objectBase) Get(key string) Amf0 {
 	return nil
 }
 
-func (v *objectBase) Set(key string, value Amf0) {
+func (v *objectBase) Set(key string, value Amf0) *objectBase {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
@@ -358,19 +355,28 @@ func (v *objectBase) Set(key string, value Amf0) {
 	if !ok {
 		v.properties = append(v.properties, prop)
 	}
+
+	return v
 }
 
 func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
+	if !eof && maxElems <= 0 {
+		return oe.Errorf("maxElems=%v without eof", maxElems)
+	}
+	if eof && maxElems > 0 {
+		return oe.Errorf("maxElems=%v with eof", maxElems)
+	}
+
 	for len(p) > 0 {
 		var u amf0UTF8
 		if err = u.UnmarshalBinary(p); err != nil {
-			return fmt.Errorf("Unmarhsal prop name, %v", err)
+			return oe.WithMessage(err, "prop name")
 		}
 		p = p[u.Size():]
 
 		var a Amf0
 		if a, err = Discovery(p); err != nil {
-			return fmt.Errorf("Discover prop %v, %v", u, err)
+			return oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
 		}
 
 		// For object EOF, we should only consume total 3bytes.
@@ -381,7 +387,7 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 
 		// For object property, consume the whole bytes.
 		if err = a.UnmarshalBinary(p); err != nil {
-			return fmt.Errorf("Unmarshal prop %v, %v", u, err)
+			return oe.WithMessage(err, fmt.Sprintf("unmarshal prop %v", string(u)))
 		}
 
 		v.Set(string(u), a)
@@ -395,7 +401,7 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 	return
 }
 
-func (v *objectBase) marshal(b io.Writer) (err error) {
+func (v *objectBase) marshal(b *bytes.Buffer) (err error) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
@@ -404,17 +410,17 @@ func (v *objectBase) marshal(b io.Writer) (err error) {
 		key, value := p.key, p.value
 
 		if pb, err = key.MarshalBinary(); err != nil {
-			return
+			return oe.WithMessage(err, fmt.Sprintf("marshal %v", string(key)))
 		}
 		if _, err = b.Write(pb); err != nil {
-			return
+			return oe.Wrapf(err, "write %v", string(key))
 		}
 
 		if pb, err = value.MarshalBinary(); err != nil {
-			return
+			return oe.WithMessage(err, fmt.Sprintf("marshal value for %v", string(key)))
 		}
 		if _, err = b.Write(pb); err != nil {
-			return
+			return oe.Wrapf(err, "marshal value for %v", string(key))
 		}
 	}
 
@@ -444,15 +450,15 @@ func (v *Object) Size() int {
 func (v *Object) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 1 {
-		return errDataNotEnough
+		return oe.Errorf("require 1 byte only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerObject {
-		return fmt.Errorf("Object marker %v is illegal", m)
+		return oe.Errorf("Object marker %v is illegal", m)
 	}
 	p = p[1:]
 
 	if err = v.unmarshal(p, true, -1); err != nil {
-		return fmt.Errorf("Object %v", err)
+		return oe.WithMessage(err, "unmarshal")
 	}
 
 	return
@@ -462,19 +468,19 @@ func (v *Object) MarshalBinary() (data []byte, err error) {
 	b := bytes.Buffer{}
 
 	if err = b.WriteByte(byte(markerObject)); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	if err = v.marshal(&b); err != nil {
-		return nil, fmt.Errorf("Object %v", err)
+		return nil, oe.WithMessage(err, "marshal")
 	}
 
 	var pb []byte
 	if pb, err = v.eof.MarshalBinary(); err != nil {
-		return
+		return nil, oe.WithMessage(err, "marshal")
 	}
 	if _, err = b.Write(pb); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	return b.Bytes(), nil
@@ -504,16 +510,16 @@ func (v *EcmaArray) Size() int {
 func (v *EcmaArray) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 5 {
-		return errDataNotEnough
+		return oe.Errorf("require 5 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerEcmaArray {
-		return fmt.Errorf("EcmaArray marker %v is illegal", m)
+		return oe.Errorf("EcmaArray marker %v is illegal", m)
 	}
 	v.count = binary.BigEndian.Uint32(p[1:])
 	p = p[5:]
 
 	if err = v.unmarshal(p, true, -1); err != nil {
-		return fmt.Errorf("EcmaArray %v", err)
+		return oe.WithMessage(err, "unmarshal")
 	}
 	return
 }
@@ -522,23 +528,23 @@ func (v *EcmaArray) MarshalBinary() (data []byte, err error) {
 	b := bytes.Buffer{}
 
 	if err = b.WriteByte(byte(markerEcmaArray)); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	if err = v.marshal(&b); err != nil {
-		return nil, fmt.Errorf("EcmaArray %v", err)
+		return nil, oe.WithMessage(err, "marshal")
 	}
 
 	var pb []byte
 	if pb, err = v.eof.MarshalBinary(); err != nil {
-		return
+		return nil, oe.WithMessage(err, "marshal")
 	}
 	if _, err = b.Write(pb); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	return b.Bytes(), nil
@@ -567,16 +573,16 @@ func (v *StrictArray) Size() int {
 func (v *StrictArray) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 5 {
-		return errDataNotEnough
+		return oe.Wrapf(err, "require 5 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerStrictArray {
-		return fmt.Errorf("StrictArray marker %v is illegal", m)
+		return oe.Errorf("StrictArray marker %v is illegal", m)
 	}
 	v.count = binary.BigEndian.Uint32(p[1:])
 	p = p[5:]
 
 	if err = v.unmarshal(p, false, int(v.count)); err != nil {
-		return fmt.Errorf("StrictArray %v", err)
+		return oe.WithMessage(err, "unmarshal")
 	}
 	return
 }
@@ -585,15 +591,15 @@ func (v *StrictArray) MarshalBinary() (data []byte, err error) {
 	b := bytes.Buffer{}
 
 	if err = b.WriteByte(byte(markerStrictArray)); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
-		return
+		return nil, oe.Wrap(err, "marshal")
 	}
 
 	if err = v.marshal(&b); err != nil {
-		return nil, fmt.Errorf("StrictArray %v", err)
+		return nil, oe.WithMessage(err, "marshal")
 	}
 
 	return b.Bytes(), nil
@@ -615,10 +621,10 @@ func (v *singleMarkerObject) Size() int {
 func (v *singleMarkerObject) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 1 {
-		return errDataNotEnough
+		return oe.Errorf("require 1 byte only %v", len(p))
 	}
 	if m := marker(p[0]); m != v.target {
-		return fmt.Errorf("%v marker %v is illegal", v.target, m)
+		return oe.Errorf("%v marker %v is illegal", v.target, m)
 	}
 	return
 }
@@ -652,7 +658,7 @@ func NewUndefined() Amf0 {
 // The AMF0 boolean, please read @doc amf0_spec_121207.pdf, @page 5, @section 2.3 Boolean Type
 type Boolean bool
 
-func newBoolean(b bool) Amf0 {
+func NewBoolean(b bool) Amf0 {
 	v := Boolean(b)
 	return &v
 }
@@ -668,10 +674,10 @@ func (v *Boolean) Size() int {
 func (v *Boolean) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 2 {
-		return errDataNotEnough
+		return oe.Errorf("require 2 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerBoolean {
-		return fmt.Errorf("BOOL marker %v is illegal", m)
+		return oe.Errorf("BOOL marker %v is illegal", m)
 	}
 	if p[1] == 0 {
 		*v = false
