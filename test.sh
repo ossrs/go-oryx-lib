@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-set -e
+go test -race -v ./...
+ret=$?; if [[ $ret -ne 0 && $ret -ne 1 ]]; then
+    echo "Test failed, exit $ret"
+    exit $ret
+fi
+
 echo "mode: atomic" > coverage.txt
 
 function coverage() {
