@@ -8,9 +8,8 @@ before_install:
 
 script:
   - mkdir -p coverage
-  - go test github.com/ossrs/go-oryx-lib/aac -race -coverprofile=coverage/aac.txt -covermode=atomic
+  - go test github.com/ossrs/go-oryx-lib/aac -race -coverprofile=coverage.txt -covermode=atomic
   - go test github.com/ossrs/go-oryx-lib/amf0 -race -coverprofile=coverage/amf0.txt -covermode=atomic
-  - echo "mode: atomic" > coverage.txt
   - tail -q -n +2 ./coverage/*.txt >> coverage.txt
 
 after_success:
