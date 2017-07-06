@@ -504,6 +504,7 @@ func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
 		{[]byte{0, 0, 0}, true, -1},
 		{[]byte{}, false, -1},
 		{[]byte{0, 0, 0}, false, -1},
+		{[]byte{0, 1, byte('e'), 0}, false, 1},
 	}
 	for _, pv := range pvs {
 		v := &objectBase{}
