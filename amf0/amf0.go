@@ -571,13 +571,17 @@ func (v *StrictArray) Size() int {
 func (v *StrictArray) UnmarshalBinary(data []byte) (err error) {
 	var p []byte
 	if p = data; len(p) < 5 {
-		return oe.Wrapf(err, "require 5 bytes only %v", len(p))
+		return oe.Errorf("require 5 bytes only %v", len(p))
 	}
 	if m := marker(p[0]); m != markerStrictArray {
 		return oe.Errorf("StrictArray marker %v is illegal", m)
 	}
 	v.count = binary.BigEndian.Uint32(p[1:])
 	p = p[5:]
+
+	if int(v.count) <= 0 {
+		return
+	}
 
 	if err = v.unmarshal(p, false, int(v.count)); err != nil {
 		return oe.WithMessage(err, "unmarshal")
@@ -606,6 +610,10 @@ func (v *StrictArray) MarshalBinary() (data []byte, err error) {
 // The single marker object, for all AMF0 which only has the marker, like null and undefined.
 type singleMarkerObject struct {
 	target marker
+}
+
+func newSingleMarkerObject(m marker) singleMarkerObject {
+	return singleMarkerObject{target: m}
 }
 
 func (v *singleMarkerObject) amf0Marker() marker {
@@ -638,7 +646,7 @@ type null struct {
 
 func NewNull() *null {
 	v := null{}
-	v.singleMarkerObject.target = markerNull
+	v.singleMarkerObject = newSingleMarkerObject(markerNull)
 	return &v
 }
 
@@ -649,7 +657,7 @@ type undefined struct {
 
 func NewUndefined() Amf0 {
 	v := undefined{}
-	v.singleMarkerObject.target = markerUndefined
+	v.singleMarkerObject = newSingleMarkerObject(markerUndefined)
 	return &v
 }
 

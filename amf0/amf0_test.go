@@ -482,3 +482,190 @@ func TestAmf0ObjectBase_Set(t *testing.T) {
 		t.Errorf("invalid value %v", string(*v))
 	}
 }
+
+func TestAmf0Object_Size(t *testing.T) {
+	if v := NewObject(); v.Size() != 1+3 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0Object_MarshalBinary(t *testing.T) {
+	v := NewObject()
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("marshal failed err %+v", err)
+	} else if bytes.Compare(b, []byte{3, 0, 0, 9}) != 0 {
+		t.Errorf("invalid object %v", b)
+	}
+}
+
+func TestAmf0Object_UnmarshalBinary(t *testing.T) {
+	b := []byte{3, 0, 0, 9}
+	v := NewObject()
+	if err := v.UnmarshalBinary(b); err != nil {
+		t.Errorf("unmarshal failed err %+v", err)
+	}
+}
+
+func TestAmf0Object_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0},
+		[]byte{3, 0},
+	}
+	for _, pv := range pvs {
+		v := NewObject()
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0EcmaArray_Size(t *testing.T) {
+	if v := NewEcmaArray(); v.Size() != 1+4+3 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0EcmaArray_MarshalBinary(t *testing.T) {
+	v := NewEcmaArray()
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("marshal failed err %+v", err)
+	} else if bytes.Compare(b, []byte{8, 0, 0, 0, 0, 0, 0, 9}) != 0 {
+		t.Errorf("invalid object %v", b)
+	}
+}
+
+func TestAmf0EcmaArray_UnmarshalBinary(t *testing.T) {
+	b := []byte{8, 0, 0, 0, 0, 0, 0, 9}
+	v := NewEcmaArray()
+	if err := v.UnmarshalBinary(b); err != nil {
+		t.Errorf("unmarshal failed err %+v", err)
+	}
+}
+
+func TestAmf0EcmaArray_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0},
+		[]byte{8, 0, 0, 0}, []byte{8, 0, 0, 0, 0, 0},
+	}
+	for _, pv := range pvs {
+		v := NewEcmaArray()
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0StrictArray_Size(t *testing.T) {
+	if v := NewStrictArray(); v.Size() != 1+4 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0StrictArray_MarshalBinary(t *testing.T) {
+	v := NewStrictArray()
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("marshal failed err %+v", err)
+	} else if bytes.Compare(b, []byte{10, 0, 0, 0, 0}) != 0 {
+		t.Errorf("invalid object %v", b)
+	}
+}
+
+func TestAmf0StrictArray_UnmarshalBinary(t *testing.T) {
+	b := []byte{10, 0, 0, 0, 0}
+	v := NewStrictArray()
+	if err := v.UnmarshalBinary(b); err != nil {
+		t.Errorf("unmarshal failed err %+v", err)
+	}
+}
+
+func TestAmf0StrictArray_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0},
+		[]byte{10, 0, 0, 0},
+	}
+	for _, pv := range pvs {
+		v := NewStrictArray()
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0SingleMarker_Size(t *testing.T) {
+	v := newSingleMarkerObject(markerBoolean)
+	if v.Size() != 1 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0SingleMarker_MarshalBinary(t *testing.T) {
+	v := newSingleMarkerObject(markerBoolean)
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("marshal failed err %+v", err)
+	} else if bytes.Compare(b, []byte{1}) != 0 {
+		t.Errorf("invalid object %v", b)
+	}
+}
+
+func TestAmf0SingleMarker_UnmarshalBinary(t *testing.T) {
+	b := []byte{1}
+	v := newSingleMarkerObject(markerBoolean)
+	if err := v.UnmarshalBinary(b); err != nil {
+		t.Errorf("unmarshal failed err %+v", err)
+	} else if v.target != markerBoolean {
+		t.Errorf("invalid target %v", v.target)
+	}
+}
+
+func TestAmf0SingleMarker_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{0},
+	}
+	for _, pv := range pvs {
+		v := newSingleMarkerObject(markerBoolean)
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
+
+func TestAmf0Boolean_Size(t *testing.T) {
+	v := NewBoolean(true)
+	if v.Size() != 2 {
+		t.Errorf("invalid size %v", v.Size())
+	}
+}
+
+func TestAmf0Boolean_MarshalBinary(t *testing.T) {
+	v := NewBoolean(true)
+	if b, err := v.MarshalBinary(); err != nil {
+		t.Errorf("marshal failed err %+v", err)
+	} else if bytes.Compare(b, []byte{1, 1}) != 0 {
+		t.Errorf("invalid object %v", b)
+	}
+}
+
+func TestAmf0Boolean_UnmarshalBinary(t *testing.T) {
+	b := []byte{1, 0}
+	v := NewBoolean(true)
+	if err := v.UnmarshalBinary(b); err != nil {
+		t.Errorf("unmarshal failed err %+v", err)
+	} else if v, ok := v.(*Boolean); !ok {
+		t.Errorf("invalid type")
+	} else if bool(*v) != false {
+		t.Errorf("invalid target %v", *v)
+	}
+}
+
+func TestAmf0Boolean_UnmarshalBinary2(t *testing.T) {
+	pvs := [][]byte{
+		nil, []byte{}, []byte{1},
+		[]byte{0, 0},
+	}
+	for _, pv := range pvs {
+		v := NewBoolean(true)
+		if err := v.UnmarshalBinary(pv); err == nil {
+			t.Errorf("should error for %v", pv)
+		}
+	}
+}
