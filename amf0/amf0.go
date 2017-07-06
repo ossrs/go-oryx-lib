@@ -378,47 +378,21 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 		return oe.Errorf("maxElems=%v with eof", maxElems)
 	}
 
-	if eof {
-		for {
-			var u amf0UTF8
-			if err = u.UnmarshalBinary(p); err != nil {
-				return oe.WithMessage(err, "prop name")
-			}
-			p = p[u.Size():]
-
-			var a Amf0
-			if a, err = Discovery(p); err != nil {
-				return oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
-			}
-
-			// For object EOF, we should only consume total 3bytes.
-			if eof && u.Size() == 2 && a.amf0Marker() == markerObjectEnd {
-				p = p[1:]
-				return
-			}
-
-			// For object property, consume the whole bytes.
-			if err = a.UnmarshalBinary(p); err != nil {
-				return oe.WithMessage(err, fmt.Sprintf("unmarshal prop %v", string(u)))
-			}
-
-			v.Set(string(u), a)
-			p = p[a.Size():]
-		}
-	}
-
-	for len(v.properties) < maxElems {
+	readOne := func() (amf0UTF8, Amf0, error) {
 		var u amf0UTF8
 		if err = u.UnmarshalBinary(p); err != nil {
-			return oe.WithMessage(err, "prop name")
+			return "", nil, oe.WithMessage(err, "prop name")
 		}
-		p = p[u.Size():]
 
+		p = p[u.Size():]
 		var a Amf0
 		if a, err = Discovery(p); err != nil {
-			return oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
+			return "", nil, oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
 		}
+		return u, a, nil
+	}
 
+	pushOne := func(u amf0UTF8, a Amf0) error {
 		// For object property, consume the whole bytes.
 		if err = a.UnmarshalBinary(p); err != nil {
 			return oe.WithMessage(err, fmt.Sprintf("unmarshal prop %v", string(u)))
@@ -426,6 +400,36 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 
 		v.Set(string(u), a)
 		p = p[a.Size():]
+		return nil
+	}
+
+	for eof {
+		u, a, err := readOne()
+		if err != nil {
+			return oe.WithMessage(err, "read")
+		}
+
+		// For object EOF, we should only consume total 3bytes.
+		if u.Size() == 2 && a.amf0Marker() == markerObjectEnd {
+			// 2 bytes is consumed by u(name), the a(eof) should only consume 1 byte.
+			p = p[1:]
+			return nil
+		}
+
+		if err := pushOne(u, a); err != nil {
+			return oe.WithMessage(err, "push")
+		}
+	}
+
+	for len(v.properties) < maxElems {
+		u, a, err := readOne()
+		if err != nil {
+			return oe.WithMessage(err, "read")
+		}
+
+		if err := pushOne(u, a); err != nil {
+			return oe.WithMessage(err, "push")
+		}
 	}
 
 	return
