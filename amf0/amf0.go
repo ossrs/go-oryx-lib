@@ -369,14 +369,45 @@ func (v *objectBase) Set(key string, value Amf0) *objectBase {
 }
 
 func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
-	if !eof && maxElems <= 0 {
+	// if no eof, elems specified by maxElems.
+	if !eof && maxElems < 0 {
 		return oe.Errorf("maxElems=%v without eof", maxElems)
 	}
-	if eof && maxElems > 0 {
+	// if eof, maxElems must be -1.
+	if eof && maxElems != -1 {
 		return oe.Errorf("maxElems=%v with eof", maxElems)
 	}
 
-	for eof || (maxElems > 0 && len(v.properties) < maxElems) {
+	if eof {
+		for {
+			var u amf0UTF8
+			if err = u.UnmarshalBinary(p); err != nil {
+				return oe.WithMessage(err, "prop name")
+			}
+			p = p[u.Size():]
+
+			var a Amf0
+			if a, err = Discovery(p); err != nil {
+				return oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
+			}
+
+			// For object EOF, we should only consume total 3bytes.
+			if eof && u.Size() == 2 && a.amf0Marker() == markerObjectEnd {
+				p = p[1:]
+				return
+			}
+
+			// For object property, consume the whole bytes.
+			if err = a.UnmarshalBinary(p); err != nil {
+				return oe.WithMessage(err, fmt.Sprintf("unmarshal prop %v", string(u)))
+			}
+
+			v.Set(string(u), a)
+			p = p[a.Size():]
+		}
+	}
+
+	for len(v.properties) < maxElems {
 		var u amf0UTF8
 		if err = u.UnmarshalBinary(p); err != nil {
 			return oe.WithMessage(err, "prop name")
@@ -388,12 +419,6 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 			return oe.WithMessage(err, fmt.Sprintf("discover prop %v", string(u)))
 		}
 
-		// For object EOF, we should only consume total 3bytes.
-		if eof && u.Size() == 2 && a.amf0Marker() == markerObjectEnd {
-			p = p[1:]
-			break
-		}
-
 		// For object property, consume the whole bytes.
 		if err = a.UnmarshalBinary(p); err != nil {
 			return oe.WithMessage(err, fmt.Sprintf("unmarshal prop %v", string(u)))
@@ -401,10 +426,6 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 
 		v.Set(string(u), a)
 		p = p[a.Size():]
-
-		if maxElems > 0 && len(v.properties) >= maxElems {
-			break
-		}
 	}
 
 	return

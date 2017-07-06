@@ -471,6 +471,7 @@ func TestAmf0ObjectBase_UnmarshalBinary(t *testing.T) {
 		{concat(&csk, cs, &cnk, cn, &cbk, cb, eof), true, -1, func(o *objectBase) bool {
 			return o.Get(string(csk)) != nil && o.Get(string(cnk)) != nil && o.Get(string(cbk)) != nil
 		}, oe.New("two")},
+		{[]byte{}, false, 0, func(o *objectBase) bool { return true }, oe.New("empty")},
 		{concat(&csk, cs), false, 1, func(o *objectBase) bool {
 			return o.Get(string(csk)) != nil
 		}, oe.New("one")},
@@ -497,7 +498,6 @@ func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
 		eof      bool
 		maxElems int
 	}{
-		{[]byte{}, false, 0},
 		{[]byte{}, true, 1},
 		{[]byte{0}, true, -1},
 		{[]byte{0, 0}, true, -1},
