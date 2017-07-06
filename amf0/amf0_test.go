@@ -726,10 +726,16 @@ func TestAmf0StrictArray_MarshalBinary(t *testing.T) {
 }
 
 func TestAmf0StrictArray_UnmarshalBinary(t *testing.T) {
-	b := []byte{10, 0, 0, 0, 0}
-	v := NewStrictArray()
-	if err := v.UnmarshalBinary(b); err != nil {
-		t.Errorf("unmarshal failed err %+v", err)
+	pvs := [][]byte{
+		[]byte{10, 0, 0, 0, 0},
+		[]byte{10, 0, 0, 0, 1, 0, 1, byte('e'), 5},
+	}
+
+	for _, pv := range pvs {
+		v := NewStrictArray()
+		if err := v.UnmarshalBinary(pv); err != nil {
+			t.Errorf("unmarshal failed err %+v", err)
+		}
 	}
 }
 
