@@ -28,6 +28,54 @@ import (
 	"testing"
 )
 
+type mockCreateBuffer struct {
+	b   buffer
+	pob func() buffer
+}
+
+func newMockCreateBuffer(b buffer) *mockCreateBuffer {
+	v := &mockCreateBuffer{b: b, pob: createBuffer}
+	createBuffer = v.create
+	return v
+}
+
+func (v *mockCreateBuffer) Release() {
+	createBuffer = v.pob
+}
+
+func (v *mockCreateBuffer) create() buffer {
+	return v.b
+}
+
+type limitBuffer struct {
+	written int
+	max     int
+}
+
+func newLimitBuffer(max int) buffer {
+	return &limitBuffer{max: max}
+}
+
+func (v *limitBuffer) Bytes() []byte {
+	return nil
+}
+
+func (v *limitBuffer) WriteByte(c byte) error {
+	v.written++
+	if v.written < v.max {
+		return nil
+	}
+	return oe.New("write byte")
+}
+
+func (v *limitBuffer) Write(p []byte) (n int, err error) {
+	v.written += len(p)
+	if v.written < v.max {
+		return len(p), nil
+	}
+	return 0, oe.New("write")
+}
+
 func TestAmf0Marker(t *testing.T) {
 	pvs := []struct {
 		m  marker
@@ -390,7 +438,7 @@ func TestAmf0ObjectBase_MarshalBinary(t *testing.T) {
 		o := objectBase{}
 		pv.set(&o)
 		if err := o.marshal(b); err != nil {
-			t.Errorf("marshal err %+v", err)
+			t.Errorf("marshal err %v %+v", err, pv.err)
 		} else if bytes.Compare(b.Bytes(), pv.v) != 0 {
 			t.Errorf("invalid expect %v actual %v err %+v", pv.v, b.Bytes(), pv.err)
 		}
@@ -413,7 +461,6 @@ func TestAmf0ObjectBase_UnmarshalBinary(t *testing.T) {
 		compare  func(o *objectBase) bool
 		err      error
 	}{
-		{[]byte{}, true, -1, func(o *objectBase) bool { return true }, oe.New("empty")},
 		{concat(eof), true, -1, func(o *objectBase) bool { return true }, oe.New("eof")},
 		{concat(&csk, cs, eof), true, -1, func(o *objectBase) bool {
 			return o.Get(string(csk)) != nil
@@ -437,7 +484,7 @@ func TestAmf0ObjectBase_UnmarshalBinary(t *testing.T) {
 	for _, pv := range pvs {
 		v := &objectBase{}
 		if err := v.unmarshal(pv.b, pv.eof, pv.maxElems); err != nil {
-			t.Errorf("unmarshal %v err %+v", pv.b, err)
+			t.Errorf("unmarshal %v err %v %+v", pv.b, err, pv.err)
 		} else if !pv.compare(v) {
 			t.Errorf("invalid object err %+v", pv.err)
 		}
@@ -461,6 +508,38 @@ func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
 		if err := v.unmarshal(pv.b, pv.eof, pv.maxElems); err == nil {
 			t.Errorf("should error for %v", pv)
 		}
+	}
+}
+
+func TestAmf0ObjectBase_Marshal2(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+
+	pvs := []struct {
+		mb  func() *mockCreateBuffer
+		set func(o *objectBase)
+		err error
+	}{
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(0))
+		}, func(o *objectBase) { o.Set(string(csk), cs) }, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(csk.Size()))
+		}, func(o *objectBase) { o.Set(string(csk), cs) }, oe.New("one")},
+	}
+
+	for _, pv := range pvs {
+		func() {
+			m := pv.mb()
+			defer m.Release()
+
+			o := &objectBase{}
+			pv.set(o)
+
+			if err := o.marshal(m.b); err == nil {
+				t.Errorf("should error %+v", pv.err)
+			}
+		}()
 	}
 }
 
@@ -519,6 +598,41 @@ func TestAmf0Object_UnmarshalBinary2(t *testing.T) {
 	}
 }
 
+func TestAmf0Object_MarshalBinary2(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+
+	pvs := []struct {
+		mb  func() *mockCreateBuffer
+		set func(o *Object)
+		err error
+	}{
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(0))
+		}, func(o *Object) {}, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(1))
+		}, func(o *Object) { o.Set(string(csk), cs) }, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(1))
+		}, func(o *Object) {}, oe.New("one")},
+	}
+
+	for _, pv := range pvs {
+		func() {
+			m := pv.mb()
+			defer m.Release()
+
+			o := NewObject()
+			pv.set(o)
+
+			if _, err := o.MarshalBinary(); err == nil {
+				t.Errorf("should error %+v", pv.err)
+			}
+		}()
+	}
+}
+
 func TestAmf0EcmaArray_Size(t *testing.T) {
 	if v := NewEcmaArray(); v.Size() != 1+4+3 {
 		t.Errorf("invalid size %v", v.Size())
@@ -556,6 +670,44 @@ func TestAmf0EcmaArray_UnmarshalBinary2(t *testing.T) {
 	}
 }
 
+func TestAmf0EcmaArray_MarshalBinary2(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+
+	pvs := []struct {
+		mb  func() *mockCreateBuffer
+		set func(o *EcmaArray)
+		err error
+	}{
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(0))
+		}, func(o *EcmaArray) {}, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(4))
+		}, func(o *EcmaArray) {}, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(5))
+		}, func(o *EcmaArray) { o.Set(string(csk), cs) }, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(5))
+		}, func(o *EcmaArray) {}, oe.New("one")},
+	}
+
+	for _, pv := range pvs {
+		func() {
+			m := pv.mb()
+			defer m.Release()
+
+			o := NewEcmaArray()
+			pv.set(o)
+
+			if _, err := o.MarshalBinary(); err == nil {
+				t.Errorf("should error %+v", pv.err)
+			}
+		}()
+	}
+}
+
 func TestAmf0StrictArray_Size(t *testing.T) {
 	if v := NewStrictArray(); v.Size() != 1+4 {
 		t.Errorf("invalid size %v", v.Size())
@@ -583,12 +735,48 @@ func TestAmf0StrictArray_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
 		nil, []byte{}, []byte{0},
 		[]byte{10, 0, 0, 0}, []byte{0, 0, 0, 0, 0},
+		[]byte{10, 0, 0, 0, 1},
 	}
 	for _, pv := range pvs {
 		v := NewStrictArray()
 		if err := v.UnmarshalBinary(pv); err == nil {
 			t.Errorf("should error for %v", pv)
 		}
+	}
+}
+
+func TestAmf0StrictArray_MarshalBinary2(t *testing.T) {
+	csk := amf0UTF8("name")
+	cs := NewString("oryx")
+
+	pvs := []struct {
+		mb  func() *mockCreateBuffer
+		set func(o *StrictArray)
+		err error
+	}{
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(0))
+		}, func(o *StrictArray) {}, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(4))
+		}, func(o *StrictArray) {}, oe.New("zero")},
+		{func() *mockCreateBuffer {
+			return newMockCreateBuffer(newLimitBuffer(5))
+		}, func(o *StrictArray) { o.Set(string(csk), cs) }, oe.New("zero")},
+	}
+
+	for _, pv := range pvs {
+		func() {
+			m := pv.mb()
+			defer m.Release()
+
+			o := NewStrictArray()
+			pv.set(o)
+
+			if _, err := o.MarshalBinary(); err == nil {
+				t.Errorf("should error %+v", pv.err)
+			}
+		}()
 	}
 }
 

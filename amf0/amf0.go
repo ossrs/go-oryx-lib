@@ -101,6 +101,17 @@ func (v marker) String() string {
 	}
 }
 
+// For utest to mock it.
+type buffer interface {
+	Bytes() []byte
+	WriteByte(c byte) error
+	Write(p []byte) (n int, err error)
+}
+
+var createBuffer = func() buffer {
+	return &bytes.Buffer{}
+}
+
 // All AMF0 things.
 type Amf0 interface {
 	// Binary marshaler and unmarshaler.
@@ -365,7 +376,7 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 		return oe.Errorf("maxElems=%v with eof", maxElems)
 	}
 
-	for len(p) > 0 {
+	for eof || (maxElems > 0 && len(v.properties) < maxElems) {
 		var u amf0UTF8
 		if err = u.UnmarshalBinary(p); err != nil {
 			return oe.WithMessage(err, "prop name")
@@ -399,7 +410,7 @@ func (v *objectBase) unmarshal(p []byte, eof bool, maxElems int) (err error) {
 	return
 }
 
-func (v *objectBase) marshal(b *bytes.Buffer) (err error) {
+func (v *objectBase) marshal(b buffer) (err error) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
@@ -463,13 +474,13 @@ func (v *Object) UnmarshalBinary(data []byte) (err error) {
 }
 
 func (v *Object) MarshalBinary() (data []byte, err error) {
-	b := bytes.Buffer{}
+	b := createBuffer()
 
 	if err = b.WriteByte(byte(markerObject)); err != nil {
 		return nil, oe.Wrap(err, "marshal")
 	}
 
-	if err = v.marshal(&b); err != nil {
+	if err = v.marshal(b); err != nil {
 		return nil, oe.WithMessage(err, "marshal")
 	}
 
@@ -523,17 +534,17 @@ func (v *EcmaArray) UnmarshalBinary(data []byte) (err error) {
 }
 
 func (v *EcmaArray) MarshalBinary() (data []byte, err error) {
-	b := bytes.Buffer{}
+	b := createBuffer()
 
 	if err = b.WriteByte(byte(markerEcmaArray)); err != nil {
 		return nil, oe.Wrap(err, "marshal")
 	}
 
-	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
+	if err = binary.Write(b, binary.BigEndian, v.count); err != nil {
 		return nil, oe.Wrap(err, "marshal")
 	}
 
-	if err = v.marshal(&b); err != nil {
+	if err = v.marshal(b); err != nil {
 		return nil, oe.WithMessage(err, "marshal")
 	}
 
@@ -590,17 +601,17 @@ func (v *StrictArray) UnmarshalBinary(data []byte) (err error) {
 }
 
 func (v *StrictArray) MarshalBinary() (data []byte, err error) {
-	b := bytes.Buffer{}
+	b := createBuffer()
 
 	if err = b.WriteByte(byte(markerStrictArray)); err != nil {
 		return nil, oe.Wrap(err, "marshal")
 	}
 
-	if err = binary.Write(&b, binary.BigEndian, v.count); err != nil {
+	if err = binary.Write(b, binary.BigEndian, v.count); err != nil {
 		return nil, oe.Wrap(err, "marshal")
 	}
 
-	if err = v.marshal(&b); err != nil {
+	if err = v.marshal(b); err != nil {
 		return nil, oe.WithMessage(err, "marshal")
 	}
 
