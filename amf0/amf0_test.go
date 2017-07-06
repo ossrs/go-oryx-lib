@@ -62,7 +62,7 @@ func (v *limitBuffer) Bytes() []byte {
 
 func (v *limitBuffer) WriteByte(c byte) error {
 	v.written++
-	if v.written < v.max {
+	if v.written <= v.max {
 		return nil
 	}
 	return oe.New("write byte")
@@ -70,7 +70,7 @@ func (v *limitBuffer) WriteByte(c byte) error {
 
 func (v *limitBuffer) Write(p []byte) (n int, err error) {
 	v.written += len(p)
-	if v.written < v.max {
+	if v.written <= v.max {
 		return len(p), nil
 	}
 	return 0, oe.New("write")
@@ -503,6 +503,7 @@ func TestAmf0ObjectBase_UnmarshalBinary2(t *testing.T) {
 		{[]byte{0, 0}, true, -1},
 		{[]byte{0, 0, 0}, true, -1},
 		{[]byte{}, false, -1},
+		{[]byte{0, 0, 0}, false, -1},
 	}
 	for _, pv := range pvs {
 		v := &objectBase{}
