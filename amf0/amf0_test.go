@@ -201,8 +201,8 @@ func TestAmf0Number_UnmarshalBinary(t *testing.T) {
 
 func TestAmf0Number_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
-		nil, []byte{}, []byte{0}, []byte{0, 1, 2, 3, 4, 5, 6, 7},
-		[]byte{1},
+		nil, []byte{}, []byte{0}, []byte{1, 1, 2, 3, 4, 5, 6, 7, 8},
+		[]byte{0, 1, 2, 3, 4, 5, 6, 7}, []byte{1},
 	}
 	for _, pv := range pvs {
 		v := Number(0)
@@ -546,6 +546,7 @@ func TestAmf0EcmaArray_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
 		nil, []byte{}, []byte{0},
 		[]byte{8, 0, 0, 0}, []byte{8, 0, 0, 0, 0, 0},
+		[]byte{0, 0, 0, 0, 0, 0},
 	}
 	for _, pv := range pvs {
 		v := NewEcmaArray()
@@ -581,7 +582,7 @@ func TestAmf0StrictArray_UnmarshalBinary(t *testing.T) {
 func TestAmf0StrictArray_UnmarshalBinary2(t *testing.T) {
 	pvs := [][]byte{
 		nil, []byte{}, []byte{0},
-		[]byte{10, 0, 0, 0},
+		[]byte{10, 0, 0, 0}, []byte{0, 0, 0, 0, 0},
 	}
 	for _, pv := range pvs {
 		v := NewStrictArray()
