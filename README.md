@@ -24,6 +24,7 @@ The library provides packages about network and multiple media processing:
 - [x] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
 - [x] [errors](errors/example_test.go): Fork from [pkg/errors](https://github.com/pkg/errors), a complex error with message and stack, read [article](https://gocn.io/article/348).
 - [x] [aac](aac/example_test.go): The AAC utilities to demux and mux AAC RAW data, for oryx.
+- [ ] [sip](sip/example_test.go): A [sip](https://en.wikipedia.org/wiki/Session_Initiation_Protocol) [RFC3261](https://www.ietf.org/rfc/rfc3261.txt) library, like [kamailio](https://github.com/kamailio/kamailio).
 - [ ] [avc](avc/example_test.go): The AVC utilities to demux and mux AVC RAW data, for oryx.
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
 
