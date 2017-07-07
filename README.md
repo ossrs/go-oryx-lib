@@ -5,6 +5,10 @@
 
 This library is exported by server [go-oryx](https://github.com/ossrs/go-oryx).
 
+## Requires
+
+[GO1.4](https://golang.org/dl/)+
+
 ## Packages
 
 The library provides packages about network and multiple media processing:
