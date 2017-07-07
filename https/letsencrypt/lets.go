@@ -336,7 +336,7 @@ func (m *Manager) CacheFile(name string) error {
 		}
 	}
 	go func() {
-		for range m.Watch() {
+		for _ = range m.Watch() {
 			err := ioutil.WriteFile(name, []byte(m.Marshal()), 0600)
 			if err != nil {
 				log.Printf("writing letsencrypt cache: %v", err)
