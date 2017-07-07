@@ -70,8 +70,8 @@ func (v *Handshake) ReadC0S0(r io.Reader) (c0 []byte, err error) {
 func (v *Handshake) WriteC1S1(w io.Writer) (err error) {
 	p := make([]byte, 1536)
 
-	if _, err = v.r.Read(p[8:]); err != nil {
-		return
+	for i := 8; i < len(p); i++ {
+		p[i] = byte(v.r.Int())
 	}
 
 	r := bytes.NewReader(p)
