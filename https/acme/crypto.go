@@ -131,9 +131,9 @@ func getKeyAuthorization(token string, key interface{}) (string, error) {
 	var publicKey crypto.PublicKey
 	switch k := key.(type) {
 	case *ecdsa.PrivateKey:
-		publicKey = &k.PublicKey
+		publicKey = k.Public()
 	case *rsa.PrivateKey:
-		publicKey = &k.PublicKey
+		publicKey = k.Public()
 	}
 
 	// Generate the Key Authorization for the challenge
