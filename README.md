@@ -24,6 +24,7 @@ The library provides packages about network and multiple media processing:
 - [x] [flv](flv/example_test.go): The FLV muxer and demuxer, for oryx.
 - [x] [errors](errors/example_test.go): Fork from [pkg/errors](https://github.com/pkg/errors), a complex error with message and stack, read [article](https://gocn.io/article/348).
 - [x] [aac](aac/example_test.go): The AAC utilities to demux and mux AAC RAW data, for oryx.
+- [x] [websocket](https://golang.org/x/net/websocket): Fork from [websocket](https://github.com/gorilla/websocket/tree/v1.2.0).
 - [ ] [sip](sip/example_test.go): A [sip](https://en.wikipedia.org/wiki/Session_Initiation_Protocol) [RFC3261](https://www.ietf.org/rfc/rfc3261.txt) library, like [pjsip](http://pjsip.org/), [freeswitch](https://freeswitch.org/) and [kamailio](https://www.kamailio.org/).
 - [ ] [avc](avc/example_test.go): The AVC utilities to demux and mux AVC RAW data, for oryx.
 - [ ] [rtmp](rtmp/example_test.go): The RTMP protocol stack, for oryx.
@@ -47,5 +48,6 @@ while all the licenses are liberal:
 1. [acme](https/acme/LICENSE) uses [MIT License](https://github.com/xenolf/lego/blob/master/LICENSE).
 1. [jose](https/jose/LICENSE) uses [Apache License 2.0](https://github.com/square/go-jose/blob/v1.1.0/LICENSE).
 1. [letsencrypt](https/letsencrypt/LICENSE) uses [BSD 3-clause "New" or "Revised" License](https://github.com/rsc/letsencrypt/blob/master/LICENSE).
+1. [websocket](https://github.com/gorilla/websocket) uses [BSD 2-clause "Simplified" License](https://github.com/gorilla/websocket/blob/master/LICENSE).
 
 Winlin 2016
