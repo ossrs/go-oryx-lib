@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ossrs/go-oryx-lib/https/jose/json"
+	"encoding/json"
 )
 
 // rawJsonWebEncryption represents a raw JWE JSON object. Used for parsing/serializing.

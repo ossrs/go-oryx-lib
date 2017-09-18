@@ -30,7 +30,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ossrs/go-oryx-lib/https/jose/json"
+	"encoding/json"
 )
 
 // rawJsonWebKey represents a public or private key in JWK format, used for parsing/serializing.

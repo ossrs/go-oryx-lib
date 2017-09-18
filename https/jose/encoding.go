@@ -27,7 +27,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ossrs/go-oryx-lib/https/jose/json"
+	"encoding/json"
 )
 
 var stripWhitespaceRegex = regexp.MustCompile("\\s")
