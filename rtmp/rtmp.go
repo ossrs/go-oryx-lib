@@ -509,7 +509,7 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 	//   fmt=2, 0x8X
 	//   fmt=3, 0xCX
 	if format <= formatType2 {
-		chunk.header.timestampDelta = uint32(p[0]<<16) | uint32(p[1])<<8 | uint32(p[2])
+		chunk.header.timestampDelta = uint32(p[0])<<16 | uint32(p[1])<<8 | uint32(p[2])
 		p = p[3:]
 
 		// fmt: 0
@@ -552,7 +552,7 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 		}
 
 		if format <= formatType1 {
-			payloadLength := uint32(p[0]<<16) | uint32(p[1])<<8 | uint32(p[2])
+			payloadLength := uint32(p[0])<<16 | uint32(p[1])<<8 | uint32(p[2])
 			p = p[3:]
 
 			// For a message, if msg exists in cache, the size must not changed.
