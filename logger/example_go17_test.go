@@ -85,13 +85,13 @@ func ExampleLogger_MultipleContextGO17() {
 	}(ctx)
 }
 
-func ExampleLogger_CopyContext() {
+func ExampleLogger_AliasContext() {
 	// This is the source context.
 	ctx := ol.WithContext(context.Background())
 
 	// However, we maybe need to create a context from backgound,
 	// but with the same cid.
-	cp := ol.CopyContext(context.Background(), ctx)
+	cp := ol.AliasContext(context.Background(), ctx)
 
 	// Now use the cp context, which has the same cid of ctx.
 	_ = cp
