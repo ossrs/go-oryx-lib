@@ -82,7 +82,7 @@ func Error(ctx ol.Context, err error) http.Handler {
 	// for complex error, use code instead.
 	if v, ok := err.(SystemComplexError); ok {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ol.E(ctx, "Serve", r.URL, "failed. err is", err.Error())
+			ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
 			jsonHandler(ctx, v).ServeHTTP(w, r)
 		})
 	}
@@ -98,7 +98,7 @@ func Error(ctx ol.Context, err error) http.Handler {
 
 		// unknown error, log and response detail
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		ol.E(ctx, "Serve", r.URL, "failed. err is", err.Error())
+		ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
 	})
 }
 
