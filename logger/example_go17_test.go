@@ -87,12 +87,16 @@ func ExampleLogger_MultipleContextGO17() {
 
 func ExampleLogger_AliasContext() {
 	// This is the source context.
-	ctx := ol.WithContext(context.Background())
+	source := ol.WithContext(context.Background())
 
-	// However, we maybe need to create a context from backgound,
-	// but with the same cid.
-	cp := ol.AliasContext(context.Background(), ctx)
+	// We should inherit from the parent context.
+	parent := context.Background()
 
-	// Now use the cp context, which has the same cid of ctx.
-	_ = cp
+	// However, we maybe need to create a context from parent,
+	// but with the same cid of source.
+	ctx := ol.AliasContext(parent, source)
+
+	// Now use the context, which has the same cid of source,
+	// and it belongs to the parent context tree.
+	_ = ctx
 }

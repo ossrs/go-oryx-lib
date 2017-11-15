@@ -66,7 +66,7 @@ type key string
 
 var cidKey key = "cid.logger.ossrs.org"
 
-var gCid int = 99
+var gCid int = 999
 
 // Create context with value.
 func WithContext(ctx context.Context) context.Context {
@@ -75,14 +75,10 @@ func WithContext(ctx context.Context) context.Context {
 }
 
 // Create context with value from parent, copy the cid from source context.
+// @remark Create new cid if source has no cid represent.
 func AliasContext(parent context.Context, source context.Context) context.Context {
 	if cid, ok := source.Value(cidKey).(int); ok {
 		return context.WithValue(parent, cidKey, cid)
 	}
 	return WithContext(parent)
-}
-
-// @deprecated Please use AliasContext instead.
-func CopyContext(parent context.Context, source context.Context) context.Context {
-	return AliasContext(parent, source)
 }
