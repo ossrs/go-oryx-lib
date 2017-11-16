@@ -42,7 +42,7 @@ func (v *loggerPlus) Printf(ctx Context, format string, a ...interface{}) {
 func (v *loggerPlus) contextFormat(ctx Context, a ...interface{}) []interface{} {
 	if ctx, ok := ctx.(context.Context); ok {
 		if cid, ok := ctx.Value(cidKey).(int); ok {
-			return append([]interface{}{fmt.Sprintf("[%v][%v] ", os.Getpid(), cid)}, a...)
+			return append([]interface{}{fmt.Sprintf("[%v][%v]", os.Getpid(), cid)}, a...)
 		}
 	} else {
 		return v.format(ctx, a...)
