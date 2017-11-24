@@ -92,7 +92,7 @@ var colorRed = "\033[31m"
 var colorBlack = "\033[0m"
 
 func (v *loggerPlus) doPrintln(args ...interface{}) {
-	if previousIo == nil {
+	if previousCloser == nil {
 		if v == Error {
 			fmt.Fprintf(os.Stdout, colorRed)
 			v.logger.Println(args...)
@@ -110,7 +110,7 @@ func (v *loggerPlus) doPrintln(args ...interface{}) {
 }
 
 func (v *loggerPlus) doPrintf(format string, args ...interface{}) {
-	if previousIo == nil {
+	if previousCloser == nil {
 		if v == Error {
 			fmt.Fprintf(os.Stdout, colorRed)
 			v.logger.Printf(format, args...)
@@ -191,26 +191,36 @@ type Logger interface {
 func init() {
 	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Trace = NewLoggerPlus(log.New(os.Stdout, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
-	Warn = NewLoggerPlus(log.New(os.Stdout, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
-	Error = NewLoggerPlus(log.New(os.Stdout, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Warn = NewLoggerPlus(log.New(os.Stderr, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+	Error = NewLoggerPlus(log.New(os.Stderr, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
+
+	// init writer and closer.
+	previousWriter = os.Stdout
+	previousCloser = nil
 }
 
 // Switch the underlayer io.
 // @remark user must close previous io for logger never close it.
-func Switch(w io.Writer) {
+func Switch(w io.Writer) io.Writer {
 	// TODO: support level, default to trace here.
 	Info = NewLoggerPlus(log.New(ioutil.Discard, logInfoLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Trace = NewLoggerPlus(log.New(w, logTraceLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Warn = NewLoggerPlus(log.New(w, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Error = NewLoggerPlus(log.New(w, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
-	if w, ok := w.(io.Closer); ok {
-		previousIo = w
+	ow := previousWriter
+	previousWriter = w
+
+	if c, ok := w.(io.Closer); ok {
+		previousCloser = c
 	}
+
+	return ow
 }
 
 // The previous underlayer io for logger.
-var previousIo io.Closer
+var previousCloser io.Closer
+var previousWriter io.Writer
 
 // The interface io.Closer
 // Cleanup the logger, discard any log util switch to fresh writer.
@@ -220,9 +230,9 @@ func Close() (err error) {
 	Warn = NewLoggerPlus(log.New(ioutil.Discard, logWarnLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 	Error = NewLoggerPlus(log.New(ioutil.Discard, logErrorLabel, log.Ldate|log.Ltime|log.Lmicroseconds))
 
-	if previousIo != nil {
-		err = previousIo.Close()
-		previousIo = nil
+	if previousCloser != nil {
+		err = previousCloser.Close()
+		previousCloser = nil
 	}
 
 	return
