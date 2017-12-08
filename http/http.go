@@ -75,6 +75,12 @@ func (v SystemComplexError) Error() string {
 	return fmt.Sprintf("%v, %v", v.Code.Error(), v.Message)
 }
 
+// application level, with code.
+type AppError interface {
+	Code() int
+	error
+}
+
 // http standard error response.
 // @remark for not SystemError, we will use logger.E to print it.
 // @remark user can use WriteError() for simple api.
@@ -82,23 +88,30 @@ func Error(ctx ol.Context, err error) http.Handler {
 	// for complex error, use code instead.
 	if v, ok := err.(SystemComplexError); ok {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
-			jsonHandler(ctx, v).ServeHTTP(w, r)
+			jsonHandler(ctx, FilterCplxSystemError(ctx, w, r, v)).ServeHTTP(w, r)
 		})
 	}
 
 	// for int error, use code instead.
 	if v, ok := err.(SystemError); ok {
-		return jsonHandler(ctx, map[string]int{"code": int(v)})
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			jsonHandler(ctx, FilterSystemError(ctx, w, r, v)).ServeHTTP(w, r)
+		})
 	}
 
+	// for application error, use code instead.
+	if v, ok := err.(AppError); ok {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			jsonHandler(ctx, FilterAppError(ctx, w, r, v)).ServeHTTP(w, r)
+		})
+	}
+
+	// unknown error, log and response detail
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		SetHeader(w)
 		w.Header().Set("Content-Type", HttpJson)
 
-		// unknown error, log and response detail
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
+		http.Error(w, FilterError(ctx, w, r, err), http.StatusInternalServerError)
 	})
 }
 
@@ -112,19 +125,9 @@ func CplxError(ctx ol.Context, code SystemError, message string) http.Handler {
 // @remark user can use nil v to response success, which data is null.
 // @remark user can use WriteData() for simple api.
 func Data(ctx ol.Context, v interface{}) http.Handler {
-	rv := map[string]interface{}{
-		"code":   0,
-		"server": os.Getpid(),
-		"data":   v,
-	}
-
-	// for string, directly use it without convert,
-	// for the type covert by golang maybe modify the content.
-	if v, ok := v.(string); ok {
-		rv["data"] = v
-	}
-
-	return jsonHandler(ctx, rv)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonHandler(ctx, FilterData(ctx, w, r, v)).ServeHTTP(w, r)
+	})
 }
 
 // set http header, for directly use the w,
@@ -210,4 +213,38 @@ func WriteError(ctx ol.Context, w http.ResponseWriter, r *http.Request, err erro
 // @remark user can use CplxError() for group of complex apis.
 func WriteCplxError(ctx ol.Context, w http.ResponseWriter, r *http.Request, code SystemError, message string) {
 	CplxError(ctx, code, message).ServeHTTP(w, r)
+}
+
+// for hijack to define the response structure.
+// user can redefine these functions for special response.
+var FilterCplxSystemError = func(ctx ol.Context, w http.ResponseWriter, r *http.Request, o SystemComplexError) interface{} {
+	ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, o)
+	return o
+}
+var FilterSystemError = func(ctx ol.Context, w http.ResponseWriter, r *http.Request, o SystemError) interface{} {
+	ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, o)
+	return map[string]int{"code": int(o)}
+}
+var FilterAppError = func(ctx ol.Context, w http.ResponseWriter, r *http.Request, err AppError) interface{} {
+	ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
+	return map[string]interface{}{"code": err.Code(), "data": err.Error()}
+}
+var FilterError = func(ctx ol.Context, w http.ResponseWriter, r *http.Request, err error) string {
+	ol.Ef(ctx, "Serve %v failed, err is %+v", r.URL, err)
+	return err.Error()
+}
+var FilterData = func(ctx ol.Context, w http.ResponseWriter, r *http.Request, o interface{}) interface{} {
+	rv := map[string]interface{}{
+		"code":   0,
+		"server": os.Getpid(),
+		"data":   o,
+	}
+
+	// for string, directly use it without convert,
+	// for the type covert by golang maybe modify the content.
+	if v, ok := o.(string); ok {
+		rv["data"] = v
+	}
+
+	return rv
 }
