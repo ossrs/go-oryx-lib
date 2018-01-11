@@ -150,9 +150,11 @@ func jsonHandler(ctx ol.Context, rv interface{}) http.Handler {
 		q := r.URL.Query()
 		if cb := q.Get("callback"); cb != "" {
 			w.Header().Set("Content-Type", HttpJavaScript)
+			// TODO: Handle error.
 			fmt.Fprintf(w, "%s(%s)", cb, string(b))
 		} else {
 			w.Header().Set("Content-Type", HttpJson)
+			// TODO: Handle error.
 			w.Write(b)
 		}
 	})
