@@ -32,6 +32,7 @@
 package avc
 
 import (
+	"fmt"
 	"github.com/ossrs/go-oryx-lib/errors"
 )
 
@@ -41,46 +42,139 @@ type NALRefIDC uint8
 // @doc ISO_IEC_14496-10-AVC-2003.pdf at page 44, 7.3.1 NAL unit syntax
 type NALUType uint8
 
+const (
+	NALUTypeNonIDR                NALUType = 1  // Coded slice of a non-IDR picture slice_layer_without_partitioning_rbsp( )
+	NALUTypeDataPartitionA        NALUType = 2  // Coded slice data partition A slice_data_partition_a_layer_rbsp( )
+	NALUTypeDataPartitionB        NALUType = 3  // Coded slice data partition B slice_data_partition_b_layer_rbsp( )
+	NALUTypeDataPartitionC        NALUType = 4  // Coded slice data partition C slice_data_partition_c_layer_rbsp( )
+	NALUTypeIDR                   NALUType = 5  // Coded slice of an IDR picture slice_layer_without_partitioning_rbsp( )
+	NALUTypeSEI                   NALUType = 6  // Supplemental enhancement information (SEI) sei_rbsp( )
+	NALUTypeSPS                   NALUType = 7  // Sequence parameter set seq_parameter_set_rbsp( )
+	NALUTypePPS                   NALUType = 8  // Picture parameter set pic_parameter_set_rbsp( )
+	NALUTypeAccessUnitDelimiter   NALUType = 9  // Access unit delimiter access_unit_delimiter_rbsp( )
+	NALUTypeEOSequence            NALUType = 10 // End of sequence end_of_seq_rbsp( )
+	NALUTypeEOStream              NALUType = 11 // End of stream end_of_stream_rbsp( )
+	NALUTypeFilterData            NALUType = 12 // Filler data filler_data_rbsp( )
+	NALUTypeSPSExt                NALUType = 13 // Sequence parameter set extension seq_parameter_set_extension_rbsp( )
+	NALUTypePrefixNALU            NALUType = 14 // Prefix NAL unit prefix_nal_unit_rbsp( )
+	NALUTypeSubsetSPS             NALUType = 15 // Subset sequence parameter set subset_seq_parameter_set_rbsp( )
+	NALUTypeLayerWithoutPartition NALUType = 19 // Coded slice of an auxiliary coded picture without partitioning slice_layer_without_partitioning_rbsp( )
+	NALUTypeCodedSliceExt         NALUType = 20 // Coded slice extension slice_layer_extension_rbsp( )
+)
+
+func (v NALUType) String() string {
+	switch v {
+	case NALUTypeNonIDR:
+		return "NonIDR"
+	case NALUTypeDataPartitionA:
+		return "DataPartitionA"
+	case NALUTypeDataPartitionB:
+		return "DataPartitionB"
+	case NALUTypeDataPartitionC:
+		return "DataPartitionC"
+	case NALUTypeIDR:
+		return "IDR"
+	case NALUTypeSEI:
+		return "SEI"
+	case NALUTypeSPS:
+		return "SPS"
+	case NALUTypePPS:
+		return "PPS"
+	case NALUTypeAccessUnitDelimiter:
+		return "AccessUnitDelimiter"
+	case NALUTypeEOSequence:
+		return "EOSequence"
+	case NALUTypeEOStream:
+		return "EOStream"
+	case NALUTypeFilterData:
+		return "FilterData"
+	case NALUTypeSPSExt:
+		return "SPSExt"
+	case NALUTypePrefixNALU:
+		return "PrefixNALU"
+	case NALUTypeSubsetSPS:
+		return "SubsetSPS"
+	case NALUTypeLayerWithoutPartition:
+		return "LayerWithoutPartition"
+	case NALUTypeCodedSliceExt:
+		return "CodedSliceExt"
+	default:
+		return "Forbidden"
+	}
+}
+
 // @doc ISO_IEC_14496-10-AVC-2003.pdf at page 60, 7.4.1 NAL unit semantics
 type NALUHeader struct {
 	// The 2-bits nal_ref_idc.
-	nalRefIDC NALRefIDC
+	NALRefIDC NALRefIDC
 	// The 5-bits nal_unit_type.
-	naluType NALUType
+	NALUType NALUType
 }
 
-func newNALUHeader() *NALUHeader {
+func NewNALUHeader() *NALUHeader {
 	return &NALUHeader{}
+}
+
+func (v *NALUHeader) String() string {
+	return fmt.Sprintf("%v, NRI=%v", v.NALUType, v.NALRefIDC)
+}
+
+func (v *NALUHeader) Size() int {
+	return 1
+}
+
+func (v *NALUHeader) UnmarshalBinary(data []byte) error {
+	if len(data) < 1 {
+		return errors.New("empty NALU")
+	}
+	v.NALRefIDC = NALRefIDC(uint8(data[0]>>5) & 0x03)
+	v.NALUType = NALUType(uint8(data[0]) & 0x1f)
+	return nil
+}
+
+func (v *NALUHeader) MarshalBinary() ([]byte, error) {
+	return []byte{
+		byte(v.NALRefIDC)<<5 | byte(v.NALUType),
+	}, nil
 }
 
 // @doc ISO_IEC_14496-10-AVC-2003.pdf at page 60, 7.4.1 NAL unit semantics
 type NALU struct {
 	*NALUHeader
-	data []byte
+	Data []byte
 }
 
-func newNALU() *NALU {
-	return &NALU{NALUHeader: newNALUHeader()}
+func NewNALU() *NALU {
+	return &NALU{NALUHeader: NewNALUHeader()}
+}
+
+func (v *NALU) String() string {
+	return fmt.Sprintf("%v, size=%vB", v.NALUHeader, len(v.Data))
+}
+
+func (v *NALU) Size() int {
+	return 1 + len(v.Data)
 }
 
 func (v *NALU) UnmarshalBinary(data []byte) error {
-	if len(data) < 1 {
-		return errors.New("empty NALU")
+	if err := v.NALUHeader.UnmarshalBinary(data); err != nil {
+		return errors.WithMessage(err, "unmarshal")
 	}
-	v.nalRefIDC = NALRefIDC(uint8(data[0]>>5) & 0x03)
-	v.naluType = NALUType(uint8(data[0]) & 0x1f)
-	v.data = data[1:]
+
+	v.Data = data[1:]
 	return nil
 }
 
 func (v *NALU) MarshalBinary() ([]byte, error) {
-	h := []byte{
-		byte(v.nalRefIDC)<<5 | byte(v.naluType),
+	b, err := v.NALUHeader.MarshalBinary()
+	if err != nil {
+		return nil, errors.WithMessage(err, "marshal")
 	}
-	if len(v.data) == 0 {
-		return h, nil
+
+	if len(v.Data) == 0 {
+		return b, nil
 	}
-	return append(h, v.data...), nil
+	return append(b, v.Data...), nil
 }
 
 // @doc Annex A Profiles and levels, ISO_IEC_14496-10-AVC-2003.pdf, page 205.
@@ -197,21 +291,21 @@ type AVCDecoderConfigurationRecord struct {
 	// profile_IDC and level_IDC in a sequence parameter set (SPS), as defined in
 	// ISO/IEC 14496-10.
 	// @remark It's 8 bits.
-	avcProfileIndication AVCProfile
+	AVCProfileIndication AVCProfile
 	// It contains the level code as defined in ISO/IEC 14496-10.
 	profileCompatibility uint8
 	// It indicates the length in bytes of the NALUnitLength field in an AVC video sample
 	// or AVC parameter set sample of the associated stream minus one.
-	avcLevelIndication AVCLevel
+	AVCLevelIndication AVCLevel
 	// It indicates the length in bytes of the NALUnitLength field in an AVC video sample
 	// or AVC parameter set sample of the associated stream minus one.
-	lengthSizeMinusOne uint8
+	LengthSizeMinusOne uint8
 	// It contains a SPS NAL unit, as specified in ISO/IEC 14496-10. SPSs shall occur in
 	// order of ascending parameter set identifier with gaps being allowed.
-	sequenceParameterSetNALUnits []*NALU
+	SequenceParameterSetNALUnits []*NALU
 	// It contains a PPS NAL unit, as specified in ISO/IEC 14496-10. PPSs shall occur in
 	// order of ascending parameter set identifier with gaps being allowed.
-	pictureParameterSetNALUnits []*NALU
+	PictureParameterSetNALUnits []*NALU
 	// @remark We ignore the sequenceParameterSetExtNALUnit.
 }
 
@@ -226,15 +320,15 @@ func (v *AVCDecoderConfigurationRecord) UnmarshalBinary(data []byte) error {
 	}
 
 	v.configurationVersion = uint8(b[0])
-	v.avcProfileIndication = AVCProfile(uint8(b[1]))
+	v.AVCProfileIndication = AVCProfile(uint8(b[1]))
 	v.profileCompatibility = uint8(b[2])
-	v.avcLevelIndication = AVCLevel(uint8(b[3]))
-	v.lengthSizeMinusOne = uint8(b[4]) & 0x03
-	b = b[4:]
+	v.AVCLevelIndication = AVCLevel(uint8(b[3]))
+	v.LengthSizeMinusOne = uint8(b[4]) & 0x03
+	b = b[5:]
 
 	numOfSequenceParameterSets := uint8(b[0]) & 0x1f
 	b = b[1:]
-	for i := 0; i < numOfSequenceParameterSets; i++ {
+	for i := 0; i < int(numOfSequenceParameterSets); i++ {
 		if len(b) < 2 {
 			return errors.Errorf("requires 2+ only %v bytes", len(b))
 		}
@@ -244,13 +338,13 @@ func (v *AVCDecoderConfigurationRecord) UnmarshalBinary(data []byte) error {
 		if len(b) < sequenceParameterSetLength {
 			return errors.Errorf("requires %v only %v bytes", sequenceParameterSetLength, len(b))
 		}
-		sps := newNALU()
+		sps := NewNALU()
 		if err := sps.UnmarshalBinary(b[:sequenceParameterSetLength]); err != nil {
 			return errors.WithMessage(err, "unmarshal")
 		}
 		b = b[sequenceParameterSetLength:]
 
-		v.sequenceParameterSetNALUnits = append(v.sequenceParameterSetNALUnits, sps)
+		v.SequenceParameterSetNALUnits = append(v.SequenceParameterSetNALUnits, sps)
 	}
 
 	if len(b) < 1 {
@@ -258,7 +352,7 @@ func (v *AVCDecoderConfigurationRecord) UnmarshalBinary(data []byte) error {
 	}
 	numOfPictureParameterSets := uint8(b[0])
 	b = b[1:]
-	for i := 0; i < numOfPictureParameterSets; i++ {
+	for i := 0; i < int(numOfPictureParameterSets); i++ {
 		if len(b) < 2 {
 			return errors.Errorf("requiers 2+ only %v bytes", len(b))
 		}
@@ -269,13 +363,51 @@ func (v *AVCDecoderConfigurationRecord) UnmarshalBinary(data []byte) error {
 		if len(b) < pictureParameterSetLength {
 			return errors.Errorf("requires %v only %v bytes", pictureParameterSetLength, len(b))
 		}
-		pps := newNALU()
+		pps := NewNALU()
 		if err := pps.UnmarshalBinary(b[:pictureParameterSetLength]); err != nil {
 			return errors.WithMessage(err, "unmarshal")
 		}
 		b = b[pictureParameterSetLength:]
 
-		v.pictureParameterSetNALUnits = append(v.pictureParameterSetNALUnits, pps)
+		v.PictureParameterSetNALUnits = append(v.PictureParameterSetNALUnits, pps)
+	}
+	return nil
+}
+
+// @doc ISO_IEC_14496-15-AVC-format-2012.pdf at page 20, 5.3.4.2 Sample format
+type AVCSample struct {
+	lengthSizeMinusOne uint8
+	NALUs              []*NALU
+}
+
+func NewAVCSample(lengthSizeMinusOne uint8) *AVCSample {
+	return &AVCSample{lengthSizeMinusOne: lengthSizeMinusOne}
+}
+
+func (v *AVCSample) UnmarshalBinary(data []byte) error {
+	sizeOfNALU := int(v.lengthSizeMinusOne) + 1
+	for b := data; len(b) > 0; {
+		if len(b) < sizeOfNALU {
+			return errors.Errorf("requires %v+ only %v bytes", sizeOfNALU, len(b))
+		}
+
+		var length uint64
+		for i := 0; i < sizeOfNALU; i++ {
+			length |= uint64(b[i]) << uint8(8*(sizeOfNALU-1-i))
+		}
+		b = b[sizeOfNALU:]
+
+		if len(b) < int(length) {
+			return errors.Errorf("requires %v only %v bytes", length, len(b))
+		}
+
+		nalu := NewNALU()
+		if err := nalu.UnmarshalBinary(b[:length]); err != nil {
+			return errors.WithMessage(err, "unmarshal")
+		}
+		b = b[length:]
+
+		v.NALUs = append(v.NALUs, nalu)
 	}
 	return nil
 }
