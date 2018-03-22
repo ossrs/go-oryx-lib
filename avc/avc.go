@@ -100,6 +100,7 @@ func (v NALUType) String() string {
 		return "CodedSliceExt"
 	default:
 		return "Forbidden"
+		return fmt.Sprintf("NALU/%v", uint8(v))
 	}
 }
 
