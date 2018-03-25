@@ -564,6 +564,10 @@ type VideoFrame struct {
 	Raw       []byte
 }
 
+func NewVideoFrame() *VideoFrame {
+	return &VideoFrame{}
+}
+
 // The packager used to codec the FLV video tag body.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
 type VideoPackager interface {

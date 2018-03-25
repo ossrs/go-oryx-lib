@@ -32,6 +32,7 @@
 package avc
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ossrs/go-oryx-lib/errors"
 )
@@ -311,7 +312,48 @@ type AVCDecoderConfigurationRecord struct {
 }
 
 func NewAVCDecoderConfigurationRecord() *AVCDecoderConfigurationRecord {
-	return &AVCDecoderConfigurationRecord{}
+	v := &AVCDecoderConfigurationRecord{}
+	v.configurationVersion = 0x01
+	return v
+}
+
+func (v *AVCDecoderConfigurationRecord) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte(byte(v.configurationVersion))
+	buf.WriteByte(byte(v.AVCProfileIndication))
+	buf.WriteByte(byte(v.profileCompatibility))
+	buf.WriteByte(byte(v.AVCLevelIndication))
+	buf.WriteByte(byte(v.LengthSizeMinusOne))
+
+	// numOfSequenceParameterSets
+	buf.WriteByte(byte(len(v.SequenceParameterSetNALUnits)))
+	for _, sps := range v.SequenceParameterSetNALUnits {
+		b, err := sps.MarshalBinary()
+		if err != nil {
+			return nil, errors.WithMessage(err, "sps")
+		}
+
+		sequenceParameterSetLength := uint16(len(b))
+		buf.WriteByte(byte(sequenceParameterSetLength >> 8))
+		buf.WriteByte(byte(sequenceParameterSetLength))
+		buf.Write(b)
+	}
+
+	// numOfPictureParameterSets
+	buf.WriteByte(byte(len(v.PictureParameterSetNALUnits)))
+	for _, pps := range v.PictureParameterSetNALUnits {
+		b, err := pps.MarshalBinary()
+		if err != nil {
+			return nil, errors.WithMessage(err, "pps")
+		}
+
+		pictureParameterSetLength := uint16(len(b))
+		buf.WriteByte(byte(pictureParameterSetLength >> 8))
+		buf.WriteByte(byte(pictureParameterSetLength))
+		buf.Write(b)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func (v *AVCDecoderConfigurationRecord) UnmarshalBinary(data []byte) error {
@@ -383,6 +425,26 @@ type AVCSample struct {
 
 func NewAVCSample(lengthSizeMinusOne uint8) *AVCSample {
 	return &AVCSample{lengthSizeMinusOne: lengthSizeMinusOne}
+}
+
+func (v *AVCSample) MarshalBinary() ([]byte, error) {
+	sizeOfNALU := int(v.lengthSizeMinusOne) + 1
+
+	var buf bytes.Buffer
+	for _, nalu := range v.NALUs {
+		b, err := nalu.MarshalBinary()
+		if err != nil {
+			return nil, errors.WithMessage(err, "write")
+		}
+
+		length := uint64(len(b))
+		for i := 0; i < sizeOfNALU; i++ {
+			buf.WriteByte(byte(length >> uint8(8*(sizeOfNALU-1-i))))
+		}
+		buf.Write(b)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func (v *AVCSample) UnmarshalBinary(data []byte) error {
