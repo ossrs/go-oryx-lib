@@ -26,7 +26,7 @@ import (
 	"github.com/ossrs/go-oryx-lib/aac"
 )
 
-func ExampleDecode() {
+func Exampleadts_Decode() {
 	var err error
 	var adts aac.ADTS
 	if adts, err = aac.NewADTS(); err != nil {
@@ -50,7 +50,7 @@ func ExampleDecode() {
 	_ = adts.ASC()
 }
 
-func ExampleEncode() {
+func Exampleadts_Encode() {
 	var err error
 	var adts aac.ADTS
 	if adts, err = aac.NewADTS(); err != nil {
