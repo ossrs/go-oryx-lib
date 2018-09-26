@@ -270,8 +270,8 @@ func (v Channels) String() string {
 	}
 }
 
-// @remark Please use NewADTS() and interface ADTS instead.
-//	It's only exposed for example.
+// Please use NewADTS() and interface ADTS instead.
+// It's only exposed for example.
 type ADTSImpl struct {
 	asc AudioSpecificConfig
 }
