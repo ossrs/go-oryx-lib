@@ -349,6 +349,7 @@ func (v *AudioSamplingRate) From(a aac.SampleRateIndex) {
 
 // The audio codec id, FLV named it the SoundFormat.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 76, @section E.4.2 Audio Tags
+// It's 4bits, that is 0-16.
 type AudioCodec uint8
 
 const (
@@ -365,7 +366,8 @@ const (
 	AudioCodecAAC                               // 10 = AAC
 	AudioCodecSpeex                             // 11 = Speex
 	AudioCodecUndefined12
-	AudioCodecUndefined13
+	// For FLV, it's undefined, we define it as Opus for WebRTC.
+	AudioCodecOpus           // 13 = Opus
 	AudioCodecMP3In8kHz      // 14 = MP3 8 kHz
 	AudioCodecDeviceSpecific // 15 = Device-specific sound
 	AudioCodecForbidden
@@ -395,6 +397,8 @@ func (v AudioCodec) String() string {
 		return "AAC"
 	case AudioCodecSpeex:
 		return "Speex"
+	case AudioCodecOpus:
+		return "Opus"
 	case AudioCodecMP3In8kHz:
 		return "MP3(8kHz)"
 	case AudioCodecDeviceSpecific:
@@ -432,15 +436,14 @@ func NewAudioPackager() (AudioPackager, error) {
 }
 
 func (v *audioPackager) Encode(frame *AudioFrame) (tag []byte, err error) {
+	audioTagHeader := []byte{
+		byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
+	}
+
 	if frame.SoundFormat == AudioCodecAAC {
-		return append([]byte{
-			byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
-			byte(frame.Trait),
-		}, frame.Raw...), nil
+		return append(append(audioTagHeader, byte(frame.Trait)), frame.Raw...), nil
 	} else {
-		return append([]byte{
-			byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
-		}, frame.Raw...), nil
+		return append(audioTagHeader, frame.Raw...), nil
 	}
 }
 
@@ -501,6 +504,7 @@ func (v VideoFrameType) String() string {
 
 // The video codec id.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+// It's 4bits, that is 0-16.
 type VideoCodec uint8
 
 const (
@@ -511,6 +515,8 @@ const (
 	VideoCodecOn2VP6Alpha            // 5 = On2 VP6 with alpha channel
 	VideoCodecScreen2                // 6 = Screen video version 2
 	VideoCodecAVC                    // 7 = AVC
+	// See page 79 at @doc https://github.com/CDN-Union/H265/blob/master/Document/video_file_format_spec_v10_1_ksyun_20170615.doc
+	VideoCodecHEVC VideoCodec = 12 // 12 = HEVC
 )
 
 func (v VideoCodec) String() string {
@@ -527,6 +533,8 @@ func (v VideoCodec) String() string {
 		return "Screen2"
 	case VideoCodecAVC:
 		return "AVC"
+	case VideoCodecHEVC:
+		return "HEVC"
 	default:
 		return "Forbidden"
 	}
@@ -534,12 +542,13 @@ func (v VideoCodec) String() string {
 
 // The video AVC frame trait, whethere sequence header or not.
 // Refer to @doc video_file_format_spec_v10.pdf, @page 78, @section E.4.3 Video Tags
+// If AVC or HEVC, it's 8bits.
 type VideoFrameTrait uint8
 
 const (
-	VideoFrameTraitSequenceHeader VideoFrameTrait = iota // 0 = AVC sequence header
-	VideoFrameTraitNALU                                  // 1 = AVC NALU
-	VideoFrameTraitSequenceEOF                           // 2 = AVC end of sequence (lower level NALU sequence ender is
+	VideoFrameTraitSequenceHeader VideoFrameTrait = iota // 0 = AVC/HEVC sequence header
+	VideoFrameTraitNALU                                  // 1 = AVC/HEVC NALU
+	VideoFrameTraitSequenceEOF                           // 2 = AVC/HEVC end of sequence (lower level NALU sequence ender is
 	VideoFrameTraitForbidden
 )
 
@@ -596,7 +605,7 @@ func (v *videoPackager) Decode(tag []byte) (frame *VideoFrame, err error) {
 	frame.FrameType = VideoFrameType(byte(p[0]>>4) & 0x0f)
 	frame.CodecID = VideoCodec(byte(p[0]) & 0x0f)
 
-	if frame.CodecID == VideoCodecAVC {
+	if frame.CodecID == VideoCodecAVC || frame.CodecID == VideoCodecHEVC {
 		frame.Trait = VideoFrameTrait(p[1])
 		frame.CTS = int32(uint32(p[2])<<16 | uint32(p[3])<<8 | uint32(p[4]))
 		frame.Raw = tag[5:]
@@ -608,7 +617,7 @@ func (v *videoPackager) Decode(tag []byte) (frame *VideoFrame, err error) {
 }
 
 func (v videoPackager) Encode(frame *VideoFrame) (tag []byte, err error) {
-	if frame.CodecID == VideoCodecAVC {
+	if frame.CodecID == VideoCodecAVC || frame.CodecID == VideoCodecHEVC {
 		return append([]byte{
 			byte(frame.FrameType)<<4 | byte(frame.CodecID), byte(frame.Trait),
 			byte(frame.CTS >> 16), byte(frame.CTS >> 8), byte(frame.CTS),
