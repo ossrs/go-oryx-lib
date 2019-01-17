@@ -301,10 +301,20 @@ func (v AudioSampleBits) String() string {
 type AudioSamplingRate uint8
 
 const (
+	// For FLV, only support 5, 11, 22, 44KHz sampling rate.
 	AudioSamplingRate5kHz  AudioSamplingRate = iota // 0 = 5.5 kHz
 	AudioSamplingRate11kHz                          // 1 = 11 kHz
 	AudioSamplingRate22kHz                          // 2 = 22 kHz
 	AudioSamplingRate44kHz                          // 3 = 44 kHz
+	// For Opus, support 8, 12, 16, 24, 48KHz
+	// We will write a UINT8 sampling rate after FLV audio tag header.
+	// @doc https://tools.ietf.org/html/rfc6716#section-2
+	AudioSamplingRateNB8kHz   = 8  // NB (narrowband)
+	AudioSamplingRateMB12kHz  = 12 // MB (medium-band)
+	AudioSamplingRateWB16kHz  = 16 // WB (wideband)
+	AudioSamplingRateSWB24kHz = 24 // SWB (super-wideband)
+	AudioSamplingRateFB48kHz  = 48 // FB (fullband)
+
 	AudioSamplingRateForbidden
 )
 
@@ -318,6 +328,16 @@ func (v AudioSamplingRate) String() string {
 		return "22kHz"
 	case AudioSamplingRate44kHz:
 		return "44kHz"
+	case AudioSamplingRateNB8kHz:
+		return "NB8kHz"
+	case AudioSamplingRateMB12kHz:
+		return "MB12kHz"
+	case AudioSamplingRateWB16kHz:
+		return "WB16kHz"
+	case AudioSamplingRateSWB24kHz:
+		return "SWB24kHz"
+	case AudioSamplingRateFB48kHz:
+		return "FB48kHz"
 	default:
 		return "Forbidden"
 	}
@@ -329,12 +349,14 @@ func (v AudioSamplingRate) ToHz() int {
 	return flvSR[v]
 }
 
-// Convert aac sample rate index to FLV sampling rate.
+// For FLV, convert aac sample rate index to FLV sampling rate.
 func (v *AudioSamplingRate) From(a aac.SampleRateIndex) {
 	switch a {
 	case aac.SampleRateIndex96kHz, aac.SampleRateIndex88kHz, aac.SampleRateIndex64kHz:
 		*v = AudioSamplingRate44kHz
-	case aac.SampleRateIndex48kHz, aac.SampleRateIndex44kHz, aac.SampleRateIndex32kHz:
+	case aac.SampleRateIndex48kHz:
+		*v = AudioSamplingRate44kHz
+	case aac.SampleRateIndex44kHz, aac.SampleRateIndex32kHz:
 		*v = AudioSamplingRate44kHz
 	case aac.SampleRateIndex24kHz, aac.SampleRateIndex22kHz, aac.SampleRateIndex16kHz:
 		*v = AudioSamplingRate22kHz
@@ -342,6 +364,32 @@ func (v *AudioSamplingRate) From(a aac.SampleRateIndex) {
 		*v = AudioSamplingRate11kHz
 	case aac.SampleRateIndex7kHz:
 		*v = AudioSamplingRate5kHz
+	default:
+		*v = AudioSamplingRateForbidden
+	}
+}
+
+// Parse the Opus sampling rate to Hz.
+func (v AudioSamplingRate) OpusToHz() int {
+	opusSR := []int{8000, 12000, 16000, 24000, 48000}
+	return opusSR[v]
+}
+
+// For Opus, convert aac sample rate index to FLV sampling rate.
+func (v *AudioSamplingRate) OpusFrom(a aac.SampleRateIndex) {
+	switch a {
+	case aac.SampleRateIndex96kHz, aac.SampleRateIndex88kHz, aac.SampleRateIndex64kHz:
+		*v = AudioSamplingRateFB48kHz
+	case aac.SampleRateIndex48kHz, aac.SampleRateIndex44kHz, aac.SampleRateIndex32kHz:
+		*v = AudioSamplingRateFB48kHz
+	case aac.SampleRateIndex24kHz, aac.SampleRateIndex22kHz:
+		*v = AudioSamplingRateSWB24kHz
+	case aac.SampleRateIndex16kHz:
+		*v = AudioSamplingRateWB16kHz
+	case aac.SampleRateIndex12kHz, aac.SampleRateIndex11kHz:
+		*v = AudioSamplingRateMB12kHz
+	case aac.SampleRateIndex8kHz, aac.SampleRateIndex7kHz:
+		*v = AudioSamplingRateNB8kHz
 	default:
 		*v = AudioSamplingRateForbidden
 	}
@@ -440,8 +488,16 @@ func (v *audioPackager) Encode(frame *AudioFrame) (tag []byte, err error) {
 		byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
 	}
 
+	// For Opus, we put the sampling rate after audio tag header,
+	// so we set the sound rate in audio tag to 0.
+	if frame.SoundFormat == AudioCodecOpus {
+		audioTagHeader[0] &= 0xf3
+	}
+
 	if frame.SoundFormat == AudioCodecAAC {
 		return append(append(audioTagHeader, byte(frame.Trait)), frame.Raw...), nil
+	} else if frame.SoundFormat == AudioCodecOpus {
+		return append(append(audioTagHeader, byte(frame.SoundRate)), frame.Raw...), nil
 	} else {
 		return append(audioTagHeader, frame.Raw...), nil
 	}
@@ -464,6 +520,10 @@ func (v *audioPackager) Decode(tag []byte) (frame *AudioFrame, err error) {
 
 	if frame.SoundFormat == AudioCodecAAC {
 		frame.Trait = AudioFrameTrait(tag[1])
+		frame.Raw = tag[2:]
+	} else if frame.SoundFormat == AudioCodecOpus {
+		// For Opus, the first UINT8 is sampling rate.
+		frame.SoundRate = AudioSamplingRate(tag[1])
 		frame.Raw = tag[2:]
 	} else {
 		frame.Raw = tag[1:]
