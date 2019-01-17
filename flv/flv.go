@@ -27,6 +27,7 @@ import (
 	"errors"
 	"github.com/ossrs/go-oryx-lib/aac"
 	"io"
+	"strings"
 )
 
 // FLV Tag Type is the type of tag,
@@ -225,12 +226,33 @@ func (v *muxer) Close() error {
 type AudioFrameTrait uint8
 
 const (
-	AudioFrameTraitSequenceHeader AudioFrameTrait = iota // 0 = AAC sequence header
-	AudioFrameTraitRaw                                   // 1 = AAC raw
-	AudioFrameTraitForbidden
+	// For AAC, the frame trait.
+	AudioFrameTraitSequenceHeader AudioFrameTrait = 0 // 0 = AAC sequence header
+	AudioFrameTraitRaw            AudioFrameTrait = 1 // 1 = AAC raw
+
+	// For Opus, the frame trait, may has more than one traits.
+	AudioFrameTraitOpusRaw          AudioFrameTrait = 0x02 // 2, Has RAW Opus data.
+	AudioFrameTraitOpusSamplingRate AudioFrameTrait = 0x04 // 4, Has Opus SamplingRate.
+	AudioFrameTraitOpusAudioLevel   AudioFrameTrait = 0x08 // 8, Has audio level data, 16bits.
+
+	AudioFrameTraitForbidden AudioFrameTrait = 0xff
 )
 
 func (v AudioFrameTrait) String() string {
+	if v > AudioFrameTraitRaw && v < AudioFrameTraitForbidden {
+		var s []string
+		if (v & AudioFrameTraitOpusRaw) == AudioFrameTraitOpusRaw {
+			s = append(s, "RAW")
+		}
+		if (v & AudioFrameTraitOpusSamplingRate) == AudioFrameTraitOpusSamplingRate {
+			s = append(s, "SR")
+		}
+		if (v & AudioFrameTraitOpusAudioLevel) == AudioFrameTraitOpusAudioLevel {
+			s = append(s, "AL")
+		}
+		return strings.Join(s, "|")
+	}
+
 	switch v {
 	case AudioFrameTraitSequenceHeader:
 		return "SequenceHeader"
@@ -462,6 +484,7 @@ type AudioFrame struct {
 	SoundSize   AudioSampleBits
 	SoundType   AudioChannels
 	Trait       AudioFrameTrait
+	AudioLevel  uint16
 	Raw         []byte
 }
 
@@ -488,7 +511,7 @@ func (v *audioPackager) Encode(frame *AudioFrame) (tag []byte, err error) {
 		byte(frame.SoundFormat)<<4 | byte(frame.SoundRate)<<2 | byte(frame.SoundSize)<<1 | byte(frame.SoundType),
 	}
 
-	// For Opus, we put the sampling rate after audio tag header,
+	// For Opus, we put the sampling rate after trait,
 	// so we set the sound rate in audio tag to 0.
 	if frame.SoundFormat == AudioCodecOpus {
 		audioTagHeader[0] &= 0xf3
@@ -497,7 +520,22 @@ func (v *audioPackager) Encode(frame *AudioFrame) (tag []byte, err error) {
 	if frame.SoundFormat == AudioCodecAAC {
 		return append(append(audioTagHeader, byte(frame.Trait)), frame.Raw...), nil
 	} else if frame.SoundFormat == AudioCodecOpus {
-		return append(append(audioTagHeader, byte(frame.SoundRate)), frame.Raw...), nil
+		var b bytes.Buffer
+
+		b.Write(audioTagHeader)
+
+		b.WriteByte(byte(frame.Trait))
+		if (frame.Trait & AudioFrameTraitOpusSamplingRate) == AudioFrameTraitOpusSamplingRate {
+			b.WriteByte(byte(frame.SoundRate))
+		}
+		if (frame.Trait & AudioFrameTraitOpusAudioLevel) == AudioFrameTraitOpusAudioLevel {
+			b.WriteByte(byte(frame.AudioLevel >> 8))
+			b.WriteByte(byte(frame.AudioLevel))
+		}
+
+		b.Write(frame.Raw)
+
+		return b.Bytes(), nil
 	} else {
 		return append(audioTagHeader, frame.Raw...), nil
 	}
@@ -522,9 +560,28 @@ func (v *audioPackager) Decode(tag []byte) (frame *AudioFrame, err error) {
 		frame.Trait = AudioFrameTrait(tag[1])
 		frame.Raw = tag[2:]
 	} else if frame.SoundFormat == AudioCodecOpus {
-		// For Opus, the first UINT8 is sampling rate.
-		frame.SoundRate = AudioSamplingRate(tag[1])
-		frame.Raw = tag[2:]
+		frame.Trait = AudioFrameTrait(tag[1])
+		p := tag[2:]
+
+		// For Opus, we put sampling rate after trait.
+		if (frame.Trait & AudioFrameTraitOpusSamplingRate) == AudioFrameTraitOpusSamplingRate {
+			if len(p) < 1 {
+				return nil, errDataNotEnough
+			}
+			frame.SoundRate = AudioSamplingRate(p[0])
+			p = p[1:]
+		}
+
+		// For Opus, we put audio level after trait.
+		if (frame.Trait & AudioFrameTraitOpusAudioLevel) == AudioFrameTraitOpusAudioLevel {
+			if len(p) < 2 {
+				return nil, errDataNotEnough
+			}
+			frame.AudioLevel = uint16(p[0])<<8 | uint16(p[1])
+			p = p[2:]
+		}
+
+		frame.Raw = p
 	} else {
 		frame.Raw = tag[1:]
 	}
