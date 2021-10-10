@@ -301,6 +301,8 @@ func (v *Protocol) DecodeMessage(m *Message) (pkt Packet, err error) {
 		if pkt, err = v.parseAMFObject(p); err != nil {
 			return nil, oe.WithMessage(err, fmt.Sprintf("Parse AMF %v", m.MessageType))
 		}
+	case MessageTypeUserControl:
+		pkt = NewUserControl()
 	default:
 		return nil, oe.Errorf("Unknown message %v", m.MessageType)
 	}
@@ -807,13 +809,13 @@ const (
 	// reserved for usage with RTM Chunk Stream protocol. Protocol messages
 	// with IDs 3-6 are reserved for usage of RTMP. Protocol message with ID
 	// 7 is used between edge server and origin server.
-	MessageTypeSetChunkSize               MessageType = 0x01 + iota
-	MessageTypeAbort                                  // 0x02
-	MessageTypeAcknowledgement                        // 0x03
-	MessageTypeUserControl                            // 0x04
-	MessageTypeWindowAcknowledgementSize              // 0x05
-	MessageTypeSetPeerBandwidth                       // 0x06
-	MessageTypeEdgeAndOriginServerCommand             // 0x07
+	MessageTypeSetChunkSize               MessageType = 0x01
+	MessageTypeAbort                      MessageType = 0x02 // 0x02
+	MessageTypeAcknowledgement            MessageType = 0x03 // 0x03
+	MessageTypeUserControl                MessageType = 0x04 // 0x04
+	MessageTypeWindowAcknowledgementSize  MessageType = 0x05 // 0x05
+	MessageTypeSetPeerBandwidth           MessageType = 0x06 // 0x06
+	MessageTypeEdgeAndOriginServerCommand MessageType = 0x07 // 0x07
 	// Please read @doc rtmp_specification_1.0.pdf, @page 38, @section 3. Types of messages
 	// The server and the client send messages over the network to
 	// communicate with each other. The messages can be of any type which
@@ -823,14 +825,14 @@ const (
 	// Please read @doc rtmp_specification_1.0.pdf, @page 41, @section 3.4. Audio message
 	// The client or the server sends this message to send audio data to the
 	// peer. The message type value of 8 is reserved for audio messages.
-	MessageTypeAudio MessageType = 0x08 + iota
+	MessageTypeAudio MessageType = 0x08
 	// Please read @doc rtmp_specification_1.0.pdf, @page 41, @section 3.5. Video message
 	// The client or the server sends this message to send video data to the
 	// peer. The message type value of 9 is reserved for video messages.
 	// These messages are large and can delay the sending of other type of
 	// messages. To avoid such a situation, the video message is assigned
 	// the lowest priority.
-	MessageTypeVideo // 0x09
+	MessageTypeVideo MessageType = 0x09 // 0x09
 	// Please read @doc rtmp_specification_1.0.pdf, @page 38, @section 3.1. Command message
 	// Command messages carry the AMF-encoded commands between the client
 	// and the server. These messages have been assigned message type value
@@ -980,13 +982,13 @@ func (v *Message) generateC0Header() ([]byte, error) {
 type chunkID uint32
 
 const (
-	chunkIDProtocolControl chunkID = 0x02 + iota
-	chunkIDOverConnection
-	chunkIDOverConnection2
-	chunkIDOverStream
-	chunkIDOverStream2
-	chunkIDVideo
-	chunkIDAudio
+	chunkIDProtocolControl chunkID = 0x02
+	chunkIDOverConnection  chunkID = 0x03
+	chunkIDOverConnection2 chunkID = 0x04
+	chunkIDOverStream      chunkID = 0x05
+	chunkIDOverStream2     chunkID = 0x06
+	chunkIDVideo           chunkID = 0x07
+	chunkIDAudio           chunkID = 0x08
 )
 
 // The Command Name of message.
@@ -1421,6 +1423,54 @@ func (v *PublishPacket) MarshalBinary() (data []byte, err error) {
 	return
 }
 
+// Please read @doc rtmp_specification_1.0.pdf, @page 54, @section 4.2.1. play
+type PlayPacket struct {
+	variantCallPacket
+	StreamName amf0.String
+}
+
+func NewPlayPacket() *PlayPacket {
+	v := &PlayPacket{}
+	v.CommandName = commandPlay
+	v.CommandObject = amf0.NewNull()
+	return v
+}
+
+func (v *PlayPacket) Size() int {
+	return v.variantCallPacket.Size() + v.StreamName.Size()
+}
+
+func (v *PlayPacket) UnmarshalBinary(data []byte) (err error) {
+	p := data
+
+	if err = v.variantCallPacket.UnmarshalBinary(p); err != nil {
+		return oe.WithMessage(err, "unmarshal call")
+	}
+	p = p[v.variantCallPacket.Size():]
+
+	if err = v.StreamName.UnmarshalBinary(p); err != nil {
+		return oe.WithMessage(err, "unmarshal stream name")
+	}
+	p = p[v.StreamName.Size():]
+
+	return
+}
+
+func (v *PlayPacket) MarshalBinary() (data []byte, err error) {
+	var pb []byte
+	if pb, err = v.variantCallPacket.MarshalBinary(); err != nil {
+		return nil, oe.WithMessage(err, "marshal call")
+	}
+	data = append(data, pb...)
+
+	if pb, err = v.StreamName.MarshalBinary(); err != nil {
+		return nil, oe.WithMessage(err, "marshal stream name")
+	}
+	data = append(data, pb...)
+
+	return
+}
+
 // Please read @doc rtmp_specification_1.0.pdf, @page 31, @section 5.1. Set Chunk Size
 // Protocol control message 1, Set Chunk Size, is used to notify the
 // peer about the new maximum chunk size.
@@ -1550,6 +1600,157 @@ func (v *SetPeerBandwidth) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, 5)
 	binary.BigEndian.PutUint32(data, v.Bandwidth)
 	data[4] = byte(v.LimitType)
+
+	return
+}
+
+type EventType uint16
+
+const (
+	// Generally, 4bytes event-data
+
+	// The server sends this event to notify the client
+	// that a stream has become functional and can be
+	// used for communication. By default, this event
+	// is sent on ID 0 after the application connect
+	// command is successfully received from the
+	// client. The event data is 4-byte and represents
+	// The stream ID of the stream that became
+	// Functional.
+	EventTypeStreamBegin = 0x00
+
+	// The server sends this event to notify the client
+	// that the playback of data is over as requested
+	// on this stream. No more data is sent without
+	// issuing additional commands. The client discards
+	// The messages received for the stream. The
+	// 4 bytes of event data represent the ID of the
+	// stream on which playback has ended.
+	EventTypeStreamEOF = 0x01
+
+	// The server sends this event to notify the client
+	// that there is no more data on the stream. If the
+	// server does not detect any message for a time
+	// period, it can notify the subscribed clients
+	// that the stream is dry. The 4 bytes of event
+	// data represent the stream ID of the dry stream.
+	EventTypeStreamDry = 0x02
+
+	// The client sends this event to inform the server
+	// of the buffer size (in milliseconds) that is
+	// used to buffer any data coming over a stream.
+	// This event is sent before the server starts
+	// processing the stream. The first 4 bytes of the
+	// event data represent the stream ID and the next
+	// 4 bytes represent the buffer length, in
+	// milliseconds.
+	EventTypeSetBufferLength = 0x03 // 8bytes event-data
+
+	// The server sends this event to notify the client
+	// that the stream is a recorded stream. The
+	// 4 bytes event data represent the stream ID of
+	// The recorded stream.
+	EventTypeStreamIsRecorded = 0x04
+
+	// The server sends this event to test whether the
+	// client is reachable. Event data is a 4-byte
+	// timestamp, representing the local server time
+	// When the server dispatched the command. The
+	// client responds with kMsgPingResponse on
+	// receiving kMsgPingRequest.
+	EventTypePingRequest = 0x06
+
+	// The client sends this event to the server in
+	// Response  to the ping request. The event data is
+	// a 4-byte timestamp, which was received with the
+	// kMsgPingRequest request.
+	EventTypePingResponse = 0x07
+
+	// For PCUC size=3, for example the payload is "00 1A 01",
+	// it's a FMS control event, where the event type is 0x001a and event data is 0x01,
+	// please notice that the event data is only 1 byte for this event.
+	EventTypeFmsEvent0 = 0x1a
+)
+
+// Please read @doc rtmp_specification_1.0.pdf, @page 32, @5.4. User Control Message (4)
+// The client or the server sends this message to notify the peer about the user control events.
+// This message carries Event type and Event data.
+type UserControl struct {
+	// Event type is followed by Event data.
+	// @see: SrcPCUCEventType
+	EventType EventType
+	// The event data generally in 4bytes.
+	// @remark for event type is 0x001a, only 1bytes.
+	// @see SrsPCUCFmsEvent0
+	EventData int32
+	// 4bytes if event_type is SetBufferLength; otherwise 0.
+	ExtraData int32
+}
+
+func NewUserControl() *UserControl {
+	return &UserControl{}
+}
+
+func (v *UserControl) BetterCid() chunkID {
+	return chunkIDProtocolControl
+}
+
+func (v *UserControl) Type() MessageType {
+	return MessageTypeUserControl
+}
+
+func (v *UserControl) Size() int {
+	size := 2
+
+	if v.EventType == EventTypeFmsEvent0 {
+		size += 1
+	} else {
+		size += 4
+	}
+
+	if v.EventType == EventTypeSetBufferLength {
+		size += 4
+	}
+
+	return size
+}
+
+func (v *UserControl) UnmarshalBinary(data []byte) (err error) {
+	if len(data) < 3 {
+		return oe.Errorf("requires 5 only %v bytes, %x", len(data), data)
+	}
+
+	v.EventType = EventType(binary.BigEndian.Uint16(data))
+	if len(data) < v.Size() {
+		return oe.Errorf("requires %v only %v bytes, %x", v.Size(), len(data), data)
+	}
+
+	if v.EventType == EventTypeFmsEvent0 {
+		v.EventData = int32(uint8(data[2]))
+	} else {
+		v.EventData = int32(binary.BigEndian.Uint32(data[2:]))
+	}
+
+	if v.EventType == EventTypeSetBufferLength {
+		v.ExtraData = int32(binary.BigEndian.Uint32(data[6:]))
+	}
+
+	return
+}
+
+func (v *UserControl) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, v.Size())
+	binary.BigEndian.PutUint16(data, uint16(v.EventType))
+
+	if v.EventType == EventTypeFmsEvent0 {
+		data[2] = uint8(v.EventData)
+	} else {
+		binary.BigEndian.PutUint32(data[2:], uint32(v.EventData))
+	}
+
+	if v.EventType == EventTypeSetBufferLength {
+		binary.BigEndian.PutUint32(data[6:], uint32(v.ExtraData))
+	}
 
 	return
 }
