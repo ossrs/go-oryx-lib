@@ -22,12 +22,12 @@
 package rtmp_test
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"time"
 
 	"github.com/ossrs/go-oryx-lib/rtmp"
+	"github.com/ossrs/go-oryx-lib/amf0"
 )
 
 func ExampleRtmpClientHandshake() {
@@ -76,13 +76,13 @@ func ExampleRtmpClientConnect() {
 
 	// Send RTMP connect tcURL packet.
 	connectApp := rtmp.NewConnectAppPacket()
-	connectApp.CommandObject.Set("tcUrl", amf0.NewString(fmt.Sprintf("rtmp://%v%v", u.Hostname(), app)))
-	if err = client.WritePacket(connectApp, 1); err != nil {
+	connectApp.CommandObject.Set("tcUrl", amf0.NewString("rtmp://localhost/live"))
+	if err := client.WritePacket(connectApp, 1); err != nil {
 		panic(err)
 	}
 
 	var connectAppRes *rtmp.ConnectAppResPacket
-	if _, err = client.ExpectPacket(&connectAppRes); err != nil {
+	if _, err := client.ExpectPacket(&connectAppRes); err != nil {
 		panic(err)
 	}
 }
