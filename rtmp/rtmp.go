@@ -520,10 +520,8 @@ func (v *Protocol) readMessageHeader(chunk *chunkStream, format formatType) (err
 		// 0x00ffffff), this value MUST be 16777215, and the 'extended
 		// timestamp header' MUST be present. Otherwise, this value SHOULD be
 		// the entire delta.
-		chunk.extendedTimestamp = false
-		if uint64(chunk.header.timestampDelta) >= extendedTimestamp {
-			chunk.extendedTimestamp = true
-
+		chunk.extendedTimestamp = uint64(chunk.header.timestampDelta) >= extendedTimestamp
+		if !chunk.extendedTimestamp {
 			// Extended timestamp: 0 or 4 bytes
 			// This field MUST be sent when the normal timsestamp is set to
 			// 0xffffff, it MUST NOT be sent if the normal timestamp is set to
